@@ -1,0 +1,6 @@
+{
+  "name": "Capitabee Financial Services - Admin & Associate Portal",
+  "description": "Internal CRM and loan management portal for Capitabee Financial Services, supporting Admin and Associate roles with lead assignment, 12-stage application tracking, document workflows, and audit logging.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

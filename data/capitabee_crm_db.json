@@ -1,0 +1,474 @@
+{
+  "users": [
+    {
+      "id": "CB-ADMIN-01",
+      "name": "System Administrator",
+      "email": "info.capitabee@gmail.com",
+      "mobile": "+918010886625",
+      "role": "ADMIN",
+      "department": "Management",
+      "designation": "Principal Administrator",
+      "status": "Active",
+      "onlineStatus": "Offline",
+      "createdAt": "2026-08-28T08:13:11.223Z",
+      "updatedAt": "2026-08-28T08:13:11.223Z",
+      "passwordHash": "69a48ffde0c4d5469b6ed3173cba050400429036ffc37041ca59357557f1a3f42f528b5ba1d1ad736203f620b14f805267388ff6bb9a3913a37d86003ad284e0",
+      "salt": "e61f206e862d5abb51bf167fc848e571",
+      "lastLogin": "2026-08-28T08:18:10.796Z",
+      "sessionStartedAt": "2026-08-28T08:18:10.796Z",
+      "lastLogout": "2026-08-28T08:25:34.426Z"
+    }
+  ],
+  "sessions": [],
+  "leads": [],
+  "applications": [],
+  "stageUpdates": [],
+  "documents": [],
+  "followUps": [],
+  "leadNotes": [],
+  "auditLogs": [
+    {
+      "id": "AUD-000005",
+      "actorId": "CB-ADMIN-01",
+      "actorName": "System Administrator",
+      "actorRole": "ADMIN",
+      "action": "USER_LOGOUT",
+      "entity": "User",
+      "entityId": "CB-ADMIN-01",
+      "timestamp": "2026-08-28T08:25:34.426Z",
+      "details": "ADMIN System Administrator logged out."
+    },
+    {
+      "id": "AUD-000004",
+      "actorId": "CB-ADMIN-01",
+      "actorName": "System Administrator",
+      "actorRole": "ADMIN",
+      "action": "USER_LOGIN",
+      "entity": "User",
+      "entityId": "CB-ADMIN-01",
+      "timestamp": "2026-08-28T08:18:10.796Z",
+      "details": "ADMIN System Administrator logged in."
+    },
+    {
+      "id": "AUD-000003",
+      "actorId": "CB-ADMIN-01",
+      "actorName": "System Administrator",
+      "actorRole": "ADMIN",
+      "action": "USER_LOGOUT",
+      "entity": "User",
+      "entityId": "CB-ADMIN-01",
+      "timestamp": "2026-08-28T08:17:10.337Z",
+      "details": "ADMIN System Administrator logged out."
+    },
+    {
+      "id": "AUD-000002",
+      "actorId": "CB-ADMIN-01",
+      "actorName": "System Administrator",
+      "actorRole": "ADMIN",
+      "action": "USER_LOGIN",
+      "entity": "User",
+      "entityId": "CB-ADMIN-01",
+      "timestamp": "2026-08-28T08:13:21.239Z",
+      "details": "ADMIN System Administrator logged in."
+    },
+    {
+      "id": "AUD-000001",
+      "actorId": "CB-ADMIN-01",
+      "actorName": "System Administrator",
+      "actorRole": "ADMIN",
+      "action": "SYSTEM_INITIALIZATION",
+      "entity": "System",
+      "entityId": "CAPITABEE-CORE",
+      "timestamp": "2026-08-28T08:13:11.223Z",
+      "details": "Capitabee Financial Services CRM initialized with Administrator account."
+    }
+  ],
+  "cibilChecks": [],
+  "notifications": [],
+  "internalMessages": [],
+  "settings": {
+    "companyName": "CAPITABEE FINANCIAL SERVICES",
+    "tagline": "PAN-INDIA LOAN ASSISTANCE",
+    "officeAddress": "101, Ganesh Tower, Dada Patil Wadi, Thane (W), Maharashtra - 400602",
+    "phone": "+91 8010886625",
+    "whatsapp": "+91 8010886625",
+    "email": "info.capitabee@gmail.com",
+    "instagram": "https://www.instagram.com/capitabee.fin?igsi=MTAzMm92aTIwdHRtcw==",
+    "loanProducts": [
+      {
+        "id": "wc",
+        "name": "Working Capital",
+        "ratePerAnnum": "8% p.a.",
+        "description": "CC / OD limits, bill discounting & inventory credit lines.",
+        "active": true
+      },
+      {
+        "id": "hl",
+        "name": "Home Loan",
+        "ratePerAnnum": "7.20% p.a.",
+        "description": "Purchase, construction, renovation, or home extension finance.",
+        "active": true
+      },
+      {
+        "id": "lap",
+        "name": "Loan Against Property (LAP)",
+        "ratePerAnnum": "8.50% p.a.",
+        "description": "Liquidity against residential, commercial, or industrial property.",
+        "active": true
+      },
+      {
+        "id": "ubl",
+        "name": "Unsecured Business Loan",
+        "ratePerAnnum": "14% p.a.",
+        "description": "Collateral-free quick expansion & working cashflow funding.",
+        "active": true
+      },
+      {
+        "id": "las",
+        "name": "Loan Against Shares",
+        "ratePerAnnum": "9.00% p.a.",
+        "description": "Pledge listed equity & mutual funds for rapid liquidity.",
+        "active": true
+      },
+      {
+        "id": "cp",
+        "name": "Commercial Purchase",
+        "ratePerAnnum": "8.50% p.a.",
+        "description": "Offices, retail shops, corporate suites & showrooms.",
+        "active": true
+      },
+      {
+        "id": "ip",
+        "name": "Industrial Purchase",
+        "ratePerAnnum": "8.50% p.a.",
+        "description": "Industrial gala, sheds, manufacturing premises & factories.",
+        "active": true
+      },
+      {
+        "id": "wh",
+        "name": "Warehouse / Godown",
+        "ratePerAnnum": "8.75% p.a.",
+        "description": "Logistics hubs, cold storage & godown facilities.",
+        "active": true
+      },
+      {
+        "id": "plot",
+        "name": "Loan on Plot",
+        "ratePerAnnum": "8.25% p.a.",
+        "description": "Residential or commercial non-agricultural plot finance.",
+        "active": true
+      },
+      {
+        "id": "plot_const",
+        "name": "Plot + Construction",
+        "ratePerAnnum": "7.50% p.a.",
+        "description": "Composite financing for plot purchase and structural build.",
+        "active": true
+      },
+      {
+        "id": "bt",
+        "name": "Balance Transfer",
+        "ratePerAnnum": "7.25% p.a.",
+        "description": "Switch high-interest loans for lower EMI and savings.",
+        "active": true
+      },
+      {
+        "id": "topup",
+        "name": "Top-Up Loan",
+        "ratePerAnnum": "7.50% p.a.",
+        "description": "Additional funds on top of your existing serviced mortgage.",
+        "active": true
+      },
+      {
+        "id": "machinery",
+        "name": "Machinery Loan",
+        "ratePerAnnum": "9.25% p.a.",
+        "description": "New and imported CNC, packaging, printing, and medical machinery.",
+        "active": true
+      },
+      {
+        "id": "plant_equip",
+        "name": "Plant & Equipment",
+        "ratePerAnnum": "9.50% p.a.",
+        "description": "Industrial infrastructure and heavy equipment financing.",
+        "active": true
+      },
+      {
+        "id": "inventory",
+        "name": "Inventory Funding",
+        "ratePerAnnum": "9.00% p.a.",
+        "description": "Short-term seasonal trade and supply chain inventory credit.",
+        "active": true
+      },
+      {
+        "id": "const_fin",
+        "name": "Construction Finance",
+        "ratePerAnnum": "10.50% p.a.",
+        "description": "Builder and developer project construction credit facilities.",
+        "active": true
+      },
+      {
+        "id": "gold",
+        "name": "Gold Loan",
+        "ratePerAnnum": "Starting as per lender eligibility",
+        "description": "Immediate liquidity against gold ornaments and coins.",
+        "active": true
+      }
+    ],
+    "lendingPartners": [
+      {
+        "name": "HDFC Bank",
+        "type": "Bank",
+        "tatDays": "3-5 Days",
+        "active": true
+      },
+      {
+        "name": "ICICI Bank",
+        "type": "Bank",
+        "tatDays": "3-5 Days",
+        "active": true
+      },
+      {
+        "name": "Axis Bank",
+        "type": "Bank",
+        "tatDays": "3-6 Days",
+        "active": true
+      },
+      {
+        "name": "State Bank of India",
+        "type": "Bank",
+        "tatDays": "5-8 Days",
+        "active": true
+      },
+      {
+        "name": "Bank of India",
+        "type": "Bank",
+        "tatDays": "5-8 Days",
+        "active": true
+      },
+      {
+        "name": "Bank of Maharashtra",
+        "type": "Bank",
+        "tatDays": "5-8 Days",
+        "active": true
+      },
+      {
+        "name": "Bank of Baroda",
+        "type": "Bank",
+        "tatDays": "5-8 Days",
+        "active": true
+      },
+      {
+        "name": "Union Bank of India",
+        "type": "Bank",
+        "tatDays": "5-8 Days",
+        "active": true
+      },
+      {
+        "name": "IDFC First Bank",
+        "type": "Bank",
+        "tatDays": "3-5 Days",
+        "active": true
+      },
+      {
+        "name": "Saraswat Co-operative Bank",
+        "type": "Bank",
+        "tatDays": "3-5 Days",
+        "active": true
+      },
+      {
+        "name": "IndusInd Bank",
+        "type": "Bank",
+        "tatDays": "3-6 Days",
+        "active": true
+      },
+      {
+        "name": "HSBC Bank",
+        "type": "Bank",
+        "tatDays": "4-7 Days",
+        "active": true
+      },
+      {
+        "name": "Deutsche Bank",
+        "type": "Bank",
+        "tatDays": "5-8 Days",
+        "active": true
+      },
+      {
+        "name": "Standard Chartered Bank",
+        "type": "Bank",
+        "tatDays": "4-7 Days",
+        "active": true
+      },
+      {
+        "name": "Punjab National Bank",
+        "type": "Bank",
+        "tatDays": "5-8 Days",
+        "active": true
+      },
+      {
+        "name": "IDBI Bank",
+        "type": "Bank",
+        "tatDays": "4-7 Days",
+        "active": true
+      },
+      {
+        "name": "Kotak Mahindra Bank",
+        "type": "Bank",
+        "tatDays": "3-5 Days",
+        "active": true
+      },
+      {
+        "name": "Bandhan Bank",
+        "type": "Bank",
+        "tatDays": "4-7 Days",
+        "active": true
+      },
+      {
+        "name": "Central Bank of India",
+        "type": "Bank",
+        "tatDays": "5-8 Days",
+        "active": true
+      },
+      {
+        "name": "Shamrao Vithal Co-op Bank",
+        "type": "Bank",
+        "tatDays": "4-7 Days",
+        "active": true
+      },
+      {
+        "name": "Federal Bank",
+        "type": "Bank",
+        "tatDays": "3-6 Days",
+        "active": true
+      },
+      {
+        "name": "Sundaram Home Finance",
+        "type": "HFC",
+        "tatDays": "4-7 Days",
+        "active": true
+      },
+      {
+        "name": "SMF (SMFG India Credit)",
+        "type": "NBFC",
+        "tatDays": "3-6 Days",
+        "active": true
+      },
+      {
+        "name": "HDB Financial Services",
+        "type": "NBFC",
+        "tatDays": "3-5 Days",
+        "active": true
+      },
+      {
+        "name": "ICICI Home Finance",
+        "type": "HFC",
+        "tatDays": "3-6 Days",
+        "active": true
+      },
+      {
+        "name": "Axis Finance",
+        "type": "NBFC",
+        "tatDays": "3-6 Days",
+        "active": true
+      },
+      {
+        "name": "Aditya Birla Capital",
+        "type": "NBFC",
+        "tatDays": "3-6 Days",
+        "active": true
+      },
+      {
+        "name": "Tata Capital",
+        "type": "NBFC",
+        "tatDays": "3-6 Days",
+        "active": true
+      },
+      {
+        "name": "Bajaj Finance",
+        "type": "NBFC",
+        "tatDays": "2-4 Days",
+        "active": true
+      },
+      {
+        "name": "L&T Finance",
+        "type": "NBFC",
+        "tatDays": "3-6 Days",
+        "active": true
+      },
+      {
+        "name": "Piramal Capital",
+        "type": "NBFC",
+        "tatDays": "4-7 Days",
+        "active": true
+      },
+      {
+        "name": "Poonawalla Fincorp",
+        "type": "NBFC",
+        "tatDays": "3-5 Days",
+        "active": true
+      },
+      {
+        "name": "Cholamandalam Investment",
+        "type": "NBFC",
+        "tatDays": "4-7 Days",
+        "active": true
+      },
+      {
+        "name": "Anand Rathi Global Finance",
+        "type": "NBFC",
+        "tatDays": "4-7 Days",
+        "active": true
+      },
+      {
+        "name": "Hero FinCorp",
+        "type": "NBFC",
+        "tatDays": "3-5 Days",
+        "active": true
+      },
+      {
+        "name": "Mahindra & Mahindra Financial Services",
+        "type": "NBFC",
+        "tatDays": "4-7 Days",
+        "active": true
+      }
+    ],
+    "leadSources": [
+      "Website",
+      "Instagram",
+      "Facebook",
+      "Google Ads",
+      "Google Search",
+      "WhatsApp",
+      "Referral",
+      "Manual Entry",
+      "Other"
+    ],
+    "leadStatuses": [
+      "New",
+      "Contacted",
+      "Interested",
+      "Follow-up",
+      "Documents Pending",
+      "Application Started",
+      "Application Submitted",
+      "In Process",
+      "Sanctioned",
+      "Disbursed",
+      "Not Interested",
+      "Not Eligible",
+      "Rejected",
+      "Lost",
+      "Closed"
+    ],
+    "staleLeadHours": 48,
+    "stuckApplicationDays": 5
+  },
+  "counters": {
+    "associateSeq": 1000,
+    "leadSeq": 0,
+    "applicationSeq": 0,
+    "documentSeq": 0,
+    "auditSeq": 5
+  }
+}
