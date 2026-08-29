@@ -32,12 +32,16 @@ export const ResetPasswordModal: React.FC<ResetPasswordModalProps> = ({
     e.preventDefault();
     setError(null);
 
+    if (!newPassword || !confirmPassword) {
+      setError('Please enter both new password and confirm password.');
+      return;
+    }
     if (newPassword.length < 6) {
       setError('Password must be at least 6 characters.');
       return;
     }
     if (newPassword !== confirmPassword) {
-      setError('Passwords do not match.');
+      setError('Password and confirm password do not match');
       return;
     }
 

@@ -122,11 +122,9 @@ export const SettingsView: React.FC = () => {
           {/* Official Brand Identity Card */}
           <div className="mt-4 p-5 rounded-2xl bg-gradient-to-r from-[#0A1224] via-[#0D182E] to-[#0A1224] border border-[#1E2B45] text-white flex flex-col sm:flex-row items-center justify-between gap-5">
             <div className="flex items-center gap-4">
-              <img
-                src="/logo.png"
-                alt="Capita Bee 3D Brand Logo"
-                className="w-16 h-16 rounded-xl object-contain border border-[#1E293B] shadow-md bg-[#080E1D]"
-              />
+              <div className="w-16 h-16 rounded-xl border border-[#1E293B] shadow-md bg-[#080E1D] flex items-center justify-center p-1 overflow-hidden shrink-0">
+                <CapitabeeLogo size="sm" variant="mark" />
+              </div>
               <div>
                 <span className="sans-micro text-[9px] text-[#FB923C] tracking-[0.2em] font-semibold">
                   OFFICIAL BRAND MARK
@@ -140,13 +138,11 @@ export const SettingsView: React.FC = () => {
               </div>
             </div>
 
-            <a
-              href="/logo.png"
-              download="capitabee_logo.png"
-              className="px-4 py-2 text-xs font-semibold text-white bg-[#EA580C] hover:bg-[#C2410C] rounded-xl transition-colors shrink-0 flex items-center gap-2 shadow-xs"
-            >
-              <span>Download Brand Logo</span>
-            </a>
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-xl bg-[#080E1D] border border-[#1E293B]">
+                <CapitabeeLogo size="md" variant="badge" />
+              </div>
+            </div>
           </div>
         </div>
       )}
@@ -217,6 +213,71 @@ export const SettingsView: React.FC = () => {
             <p className="sans-micro text-[10px] text-[#888888] tracking-[0.16em] mt-0.5">
               Configuration endpoints for incoming leads and external credit service providers
             </p>
+          </div>
+
+          {/* Shared Supabase Database Connector */}
+          <div className="p-5 rounded-xl border border-[#E8E6E1] bg-white space-y-4 shadow-xs">
+            <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+              <div>
+                <div className="flex items-center gap-2">
+                  <Globe className="w-4 h-4 text-[#B89758]" />
+                  <h4 className="serif-display text-base font-normal text-[#121212]">
+                    Shared Supabase Database Project
+                  </h4>
+                </div>
+                <p className="text-xs text-[#5A5854] mt-1">
+                  Unified PostgreSQL database shared between the Capitabee public website and this Employee CRM portal.
+                </p>
+                <div className="mt-2 flex flex-wrap items-center gap-2 sans-micro text-[9px]">
+                  <span className="text-[#888888]">Project URL:</span>
+                  <code className="px-2 py-0.5 rounded bg-[#FAF9F6] border border-[#E8E6E1] text-[#121212] font-mono">
+                    https://fvpnergqltezjbgbtwtv.supabase.co
+                  </code>
+                </div>
+              </div>
+
+              <div>
+                {integrationStatus?.supabase?.status?.includes('CONNECTED') ? (
+                  <span className="sans-micro text-[9px] font-semibold px-3 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg flex items-center gap-1.5">
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <span>CONNECTED TO SUPABASE</span>
+                  </span>
+                ) : (
+                  <span className="sans-micro text-[9px] font-semibold px-3 py-1 bg-amber-50 text-amber-800 border border-amber-200 rounded-lg flex items-center gap-1.5">
+                    <AlertTriangle className="w-3.5 h-3.5" />
+                    <span>{integrationStatus?.supabase?.status || 'AWAITING ANON KEY'}</span>
+                  </span>
+                )}
+              </div>
+            </div>
+
+            <div className="p-3.5 rounded-xl bg-[#FAF9F6] border border-[#E8E6E1] space-y-2 text-xs">
+              <div className="flex items-center justify-between">
+                <span className="sans-micro text-[9px] font-semibold text-[#121212] tracking-wider uppercase">
+                  Connection Details & Synchronized Entities
+                </span>
+                <span className="sans-micro text-[8.5px] text-[#888888]">
+                  Status: {integrationStatus?.supabase?.message || 'Configured via VITE_SUPABASE_ANON_KEY'}
+                </span>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
+                {[
+                  { name: 'Admin & Associates', key: 'profiles' },
+                  { name: 'Leads & Inquiries', key: 'leads' },
+                  { name: 'Customer Records', key: 'customers' },
+                  { name: '12-Stage Applications', key: 'applications' },
+                  { name: 'Stage Updates Log', key: 'stage_updates' },
+                  { name: 'KYC & Loan Documents', key: 'documents' },
+                  { name: 'WhatsApp & SMS Logs', key: 'notifications' },
+                  { name: 'Reviews & Feedback', key: 'reviews' },
+                ].map(item => (
+                  <div key={item.key} className="p-2 bg-white rounded-lg border border-[#E8E6E1] text-[11px] flex items-center gap-1.5">
+                    <CheckCircle2 className="w-3 h-3 text-[#2D7A70] shrink-0" />
+                    <span className="text-[#121212] truncate">{item.name}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
 
           {/* Lead Webhook */}

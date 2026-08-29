@@ -11,6 +11,7 @@ interface AuthContextType {
   role: UserRole | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  loading: boolean;
   login: (email: string, pass: string) => Promise<User>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
@@ -19,19 +20,13 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(() => {
-    try {
-      const saved = localStorage.getItem('capitabee_user');
-      return saved ? JSON.parse(saved) : null;
-    } catch {
-      return null;
-    }
-  });
+  const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
   const refreshUser = useCallback(async () => {
     const token = localStorage.getItem('capitabee_auth_token');
     if (!token) {
+      localStorage.removeItem('capitabee_user');
       setUser(null);
       setIsLoading(false);
       return;
@@ -41,9 +36,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setUser(current);
       localStorage.setItem('capitabee_user', JSON.stringify(current));
     } catch (err) {
-      console.warn('Session check failed:', err);
       localStorage.removeItem('capitabee_auth_token');
       localStorage.removeItem('capitabee_user');
+      localStorage.removeItem('capitabee_supabase_auth_token');
       setUser(null);
     } finally {
       setIsLoading(false);
@@ -53,6 +48,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     refreshUser();
   }, [refreshUser]);
+
+  // Global listener for 401 / session expiry dispatched from API layer
+  useEffect(() => {
+    const handleAuthExpired = () => {
+      localStorage.removeItem('capitabee_auth_token');
+      localStorage.removeItem('capitabee_user');
+      localStorage.removeItem('capitabee_supabase_auth_token');
+      setUser(null);
+      setIsLoading(false);
+    };
+
+    window.addEventListener('capitabee_auth_expired', handleAuthExpired);
+    return () => window.removeEventListener('capitabee_auth_expired', handleAuthExpired);
+  }, []);
 
   const login = async (email: string, pass: string): Promise<User> => {
     setIsLoading(true);
@@ -72,8 +81,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       await api.logout();
     } catch (err) {
-      console.error('Logout error:', err);
+      console.warn('Logout notice:', err);
     } finally {
+      localStorage.removeItem('capitabee_auth_token');
+      localStorage.removeItem('capitabee_user');
+      localStorage.removeItem('capitabee_supabase_auth_token');
       setUser(null);
       setIsLoading(false);
     }
@@ -86,6 +98,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         role: user?.role || null,
         isAuthenticated: Boolean(user),
         isLoading,
+        loading: isLoading,
         login,
         logout,
         refreshUser,

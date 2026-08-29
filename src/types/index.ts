@@ -312,6 +312,73 @@ export interface LendingPartner {
   active: boolean;
 }
 
+export interface Customer {
+  id: string; // e.g. CUST-2026-0001
+  name: string;
+  mobile: string;
+  email?: string;
+  city?: string;
+  state?: string;
+  pan?: string;
+  aadhaarLast4?: string;
+  employmentType?: string;
+  monthlyIncome?: number;
+  assignedAssociateId?: string | null;
+  assignedAssociateName?: string | null;
+  totalApplicationsCount?: number;
+  totalDisbursedAmount?: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CustomerReview {
+  id: string;
+  applicationId?: string;
+  customerId?: string;
+  customerName: string;
+  rating: number; // 1 to 5
+  comment: string;
+  isPublic: boolean;
+  status: 'Pending' | 'Approved' | 'Archived';
+  response?: string;
+  respondedBy?: string;
+  respondedAt?: string;
+  createdAt: string;
+}
+
+export interface AssociateTarget {
+  id: string;
+  associateId: string;
+  associateName?: string;
+  monthYear: string; // e.g. '2026-08'
+  targetAmount: number; // In INR
+  achievedAmount: number;
+  targetApplications: number;
+  achievedApplications: number;
+  notes?: string;
+  updatedAt: string;
+}
+
+export interface SupabaseConnectionStatus {
+  configured: boolean;
+  url: string;
+  hasAnonKey: boolean;
+  connected: boolean;
+  authSessionActive: boolean;
+  realtimeActive: boolean;
+  latencyMs?: number;
+  checkedAt: string;
+  tables: {
+    name: string;
+    exists: boolean;
+    rowCount?: number;
+    error?: string;
+  }[];
+  missingTables: string[];
+  missingEnvVars: string[];
+  recommendations: string[];
+}
+
 export interface CompanySettings {
   companyName: string;
   tagline: string;
@@ -327,3 +394,4 @@ export interface CompanySettings {
   staleLeadHours: number;
   stuckApplicationDays: number;
 }
+

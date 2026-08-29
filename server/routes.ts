@@ -260,8 +260,8 @@ apiRouter.post('/associates', authMiddleware, requireAdmin, (req: AuthenticatedR
     return res.status(400).json({ error: 'Name, mobile, email, and password are required.' });
   }
 
-  if (password !== confirmPassword) {
-    return res.status(400).json({ error: 'Password and Confirm Password do not match.' });
+  if (confirmPassword !== undefined && password !== confirmPassword) {
+    return res.status(400).json({ error: 'Password and confirm password do not match' });
   }
 
   if (password.length < 6) {

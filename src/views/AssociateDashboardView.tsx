@@ -51,17 +51,17 @@ export const AssociateDashboardView: React.FC<AssociateDashboardViewProps> = ({
     setLoading(true);
     try {
       const [statsRes, leadsRes, appsRes, followUpsRes] = await Promise.all([
-        api.getDashboardStats(),
-        api.getLeads({ limit: 6 }),
-        api.getApplications({ limit: 6 }),
-        api.getFollowUps({ date: new Date().toISOString().split('T')[0] }),
+        api.getDashboardStats().catch(() => ({ stats: null })),
+        api.getLeads({ limit: 6 }).catch(() => ({ leads: [] })),
+        api.getApplications({ limit: 6 }).catch(() => ({ applications: [] })),
+        api.getFollowUps({ date: new Date().toISOString().split('T')[0] }).catch(() => ({ followUps: [] })),
       ]);
       setStats(statsRes.stats);
       setMyLeads(leadsRes.leads || []);
       setMyApps(appsRes.applications || []);
       setTodayFollowUps(followUpsRes.followUps || []);
     } catch (err: any) {
-      console.error('Associate dashboard error:', err);
+      console.warn('Associate dashboard notice:', err?.message || err);
     } finally {
       setLoading(false);
     }

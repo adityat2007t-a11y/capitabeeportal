@@ -51,15 +51,15 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
     setLoading(true);
     try {
       const [statsRes, leadsRes, appsRes] = await Promise.all([
-        api.getDashboardStats(),
-        api.getLeads({ limit: 5 }),
-        api.getApplications({ limit: 5 }),
+        api.getDashboardStats().catch(() => ({ stats: null })),
+        api.getLeads({ limit: 5 }).catch(() => ({ leads: [] })),
+        api.getApplications({ limit: 5 }).catch(() => ({ applications: [] })),
       ]);
       setStats(statsRes.stats);
       setRecentLeads(leadsRes.leads || []);
       setRecentApps(appsRes.applications || []);
     } catch (err: any) {
-      console.error('Failed to load admin dashboard data:', err);
+      console.warn('Dashboard data notification:', err?.message || err);
     } finally {
       setLoading(false);
     }

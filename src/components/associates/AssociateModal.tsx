@@ -73,12 +73,16 @@ export const AssociateModal: React.FC<AssociateModalProps> = ({
     }
 
     if (!initialAssociate) {
-      if (!password || password.length < 6) {
+      if (!password || !confirmPassword) {
+        setError('Please enter both password and confirm password.');
+        return;
+      }
+      if (password.length < 6) {
         setError('Password must be at least 6 characters.');
         return;
       }
       if (password !== confirmPassword) {
-        setError('Passwords do not match.');
+        setError('Password and confirm password do not match');
         return;
       }
     }
@@ -101,6 +105,7 @@ export const AssociateModal: React.FC<AssociateModalProps> = ({
           email,
           mobile,
           password,
+          confirmPassword,
           associateId: associateId.trim() || undefined,
           department,
           designation,
