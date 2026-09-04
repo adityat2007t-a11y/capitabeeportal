@@ -28,18 +28,29 @@ import { useAuth } from '../../context/AuthContext';
 import { WhatsAppActionModal } from '../common/WhatsAppActionModal';
 
 interface ApplicationDetailDrawerProps {
-  applicationId: string | null;
+  applicationId?: string | null;
+  application?: Application | null;
+  isOpen?: boolean;
   onClose: () => void;
-  onUpdate: () => void;
+  onUpdate?: () => void;
+  onRefresh?: () => void;
+  onUpdateStage?: (app: Application) => void;
+  onRequestDocs?: (app: Application) => void;
 }
 
 export const ApplicationDetailDrawer: React.FC<ApplicationDetailDrawerProps> = ({
   applicationId,
+  application,
+  isOpen,
   onClose,
   onUpdate,
+  onRefresh,
 }) => {
   const { role, user } = useAuth();
-  const [app, setApp] = useState<Application | null>(null);
+  const effectiveAppId = applicationId || application?.id || null;
+  const isVisible = isOpen !== undefined ? isOpen && !!effectiveAppId : !!effectiveAppId;
+
+  const [app, setApp] = useState<Application | null>(application || null);
   const [documents, setDocuments] = useState<DocumentRecord[]>([]);
   const [stageUpdates, setStageUpdates] = useState<StageUpdateLog[]>([]);
   const [loading, setLoading] = useState(false);
@@ -59,11 +70,16 @@ export const ApplicationDetailDrawer: React.FC<ApplicationDetailDrawerProps> = (
   const [rejectionReason, setRejectionReason] = useState('');
   const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState(false);
 
+  const triggerRefresh = () => {
+    onUpdate?.();
+    onRefresh?.();
+  };
+
   const loadData = async () => {
-    if (!applicationId) return;
+    if (!effectiveAppId) return;
     setLoading(true);
     try {
-      const res = await api.getApplication(applicationId);
+      const res = await api.getApplication(effectiveAppId);
       setApp(res.application);
       setDocuments(res.documents || []);
       setStageUpdates(res.stageUpdates || []);
@@ -77,14 +93,19 @@ export const ApplicationDetailDrawer: React.FC<ApplicationDetailDrawerProps> = (
   };
 
   useEffect(() => {
-    if (applicationId) {
+    if (application) {
+      setApp(application);
+      setSanctionAmount(String(application.sanctionAmount || 0));
+      setDisbursedAmount(String(application.disbursementAmount || 0));
+    }
+    if (effectiveAppId) {
       loadData();
       setActiveTab('stages');
       setEditingAmounts(false);
     }
-  }, [applicationId]);
+  }, [effectiveAppId, application]);
 
-  if (!applicationId) return null;
+  if (!isVisible || !effectiveAppId) return null;
 
   const handleSaveAmounts = async () => {
     if (!app) return;
@@ -95,7 +116,7 @@ export const ApplicationDetailDrawer: React.FC<ApplicationDetailDrawerProps> = (
       });
       setEditingAmounts(false);
       loadData();
-      onUpdate();
+      triggerRefresh();
     } catch (err: any) {
       alert(err.message || 'Failed to update amounts');
     }
@@ -105,7 +126,7 @@ export const ApplicationDetailDrawer: React.FC<ApplicationDetailDrawerProps> = (
     try {
       await api.reviewDocument(docId, 'Verified');
       loadData();
-      onUpdate();
+      triggerRefresh();
     } catch (err: any) {
       alert(err.message || 'Failed to verify document');
     }
@@ -121,7 +142,7 @@ export const ApplicationDetailDrawer: React.FC<ApplicationDetailDrawerProps> = (
       setRejectingDocId(null);
       setRejectionReason('');
       loadData();
-      onUpdate();
+      triggerRefresh();
     } catch (err: any) {
       alert(err.message || 'Failed to reject document');
     }
@@ -605,7 +626,7 @@ export const ApplicationDetailDrawer: React.FC<ApplicationDetailDrawerProps> = (
         stageToEdit={selectedStageForEdit}
         onSuccess={() => {
           loadData();
-          onUpdate();
+          triggerRefresh();
         }}
       />
 
@@ -616,7 +637,7 @@ export const ApplicationDetailDrawer: React.FC<ApplicationDetailDrawerProps> = (
         applicationId={app?.id || null}
         onSuccess={() => {
           loadData();
-          onUpdate();
+          triggerRefresh();
         }}
       />
 

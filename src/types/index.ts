@@ -2,7 +2,7 @@
  * Capitabee Financial Services - Data Types and Interfaces
  */
 
-export type UserRole = 'ADMIN' | 'ASSOCIATE';
+export type UserRole = 'ADMIN' | 'EMPLOYEE' | 'ASSOCIATE' | 'PARTNER' | 'CUSTOMER';
 export type Role = UserRole;
 
 export type UserStatus = 'Active' | 'Inactive' | 'Suspended';
@@ -10,18 +10,20 @@ export type UserStatus = 'Active' | 'Inactive' | 'Suspended';
 export type OnlineStatus = 'Online' | 'Offline' | 'Away';
 
 export interface User {
-  id: string; // Admin or Associate ID (e.g., CB-1001)
+  id: string; // Admin, Associate, Partner, Employee or Customer ID (e.g., CB-1001)
   name: string;
   email: string;
   mobile: string;
   role: UserRole;
   employeeId?: string; // e.g., CB-1001
+  partnerId?: string;
   department?: string;
   designation?: string;
   status: UserStatus;
   onlineStatus?: OnlineStatus;
   target?: number; // Monthly target in INR
   monthlyTarget?: number;
+  targetCustomers?: number;
   joiningDate?: string;
   lastLogin?: string;
   lastLogout?: string;
@@ -62,6 +64,7 @@ export type LeadSource =
 
 export interface Lead {
   id: string; // e.g. LD-2026-000001
+  customerId?: string;
   customerName: string;
   mobile: string;
   email?: string;
@@ -73,6 +76,13 @@ export interface Lead {
   leadSource: LeadSource;
   assignedAssociateId?: string | null;
   assignedAssociateName?: string | null;
+  assignedPartnerId?: string | null;
+  assignedPartnerName?: string | null;
+  assignedEmployeeId?: string | null;
+  assignedEmployeeName?: string | null;
+  createdById?: string | null;
+  createdByName?: string | null;
+  createdByRole?: UserRole | null;
   leadStatus: LeadStatus;
   priority: LeadPriority;
   createdDate: string;
@@ -110,6 +120,7 @@ export interface StageInfo {
 
 export interface Application {
   id: string; // e.g. APP-2026-000001
+  customerId?: string;
   leadId?: string;
   customerName: string;
   customerPhone: string;
@@ -122,6 +133,13 @@ export interface Application {
   disbursementAmount?: number;
   assignedAssociateId?: string | null;
   assignedAssociateName?: string | null;
+  assignedPartnerId?: string | null;
+  assignedPartnerName?: string | null;
+  assignedEmployeeId?: string | null;
+  assignedEmployeeName?: string | null;
+  createdById?: string | null;
+  createdByName?: string | null;
+  createdByRole?: UserRole | null;
   status: ApplicationStatus;
   currentStage: number; // 1 to 12
   currentStageName: string;
@@ -313,7 +331,9 @@ export interface LendingPartner {
 }
 
 export interface Customer {
-  id: string; // e.g. CUST-2026-0001
+  id: string; // e.g. CUST-2026-0001 or CAP-20260902-0001
+  customerId?: string;
+  userId?: string; // Links to Auth User if portal access is granted
   name: string;
   mobile: string;
   email?: string;
@@ -325,8 +345,23 @@ export interface Customer {
   monthlyIncome?: number;
   assignedAssociateId?: string | null;
   assignedAssociateName?: string | null;
+  assignedPartnerId?: string | null;
+  assignedPartnerName?: string | null;
+  assignedEmployeeId?: string | null;
+  assignedEmployeeName?: string | null;
+  createdById?: string | null;
+  createdByName?: string | null;
+  portalAccessEnabled?: boolean;
+  portalLastLogin?: string;
   totalApplicationsCount?: number;
   totalDisbursedAmount?: number;
+  latestApplicationId?: string;
+  latestLoanType?: string;
+  latestStageName?: string;
+  latestStageNumber?: number;
+  latestStatus?: string;
+  latestLoanAmount?: number;
+  latestCreatedDate?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -339,25 +374,42 @@ export interface CustomerReview {
   rating: number; // 1 to 5
   comment: string;
   isPublic: boolean;
-  status: 'Pending' | 'Approved' | 'Archived';
+  status: 'Pending' | 'Approved' | 'Rejected' | 'Archived';
   response?: string;
   respondedBy?: string;
   respondedAt?: string;
   createdAt: string;
 }
 
+export type Review = CustomerReview;
+
+export interface UserStats {
+  totalPartners?: number;
+  activePartners?: number;
+  totalBorrowers?: number;
+  totalApplications?: number;
+  totalDisbursedAmount?: number;
+}
+
 export interface AssociateTarget {
   id: string;
   associateId: string;
   associateName?: string;
+  partnerId?: string;
+  partnerName?: string;
+  role?: 'ASSOCIATE' | 'PARTNER';
   monthYear: string; // e.g. '2026-08'
   targetAmount: number; // In INR
   achievedAmount: number;
   targetApplications: number;
   achievedApplications: number;
+  targetCustomers?: number;
+  achievedCustomers?: number;
   notes?: string;
   updatedAt: string;
 }
+
+export type PartnerTarget = AssociateTarget;
 
 export interface SupabaseConnectionStatus {
   configured: boolean;

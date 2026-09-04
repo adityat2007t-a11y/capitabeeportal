@@ -19,7 +19,12 @@ import {
   History,
   LogOut,
   UserCheck,
+  Star,
   X,
+  Building2,
+  Target,
+  Share2,
+  FolderPlus,
 } from 'lucide-react';
 import { CapitabeeLogo } from '../common/CapitabeeLogo';
 import { useAuth } from '../../context/AuthContext';
@@ -43,29 +48,60 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'admin-dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'admin-leads', label: 'Leads CRM', icon: Users },
     { id: 'admin-applications', label: 'Applications (12-Stage)', icon: Briefcase },
+    { id: 'admin-customers', label: 'Customers & Portals', icon: Users },
     { id: 'admin-associates', label: 'Associates', icon: UserCheck },
+    { id: 'admin-partners', label: 'Channel Partners', icon: Building2 },
+    { id: 'admin-targets', label: 'Targets & Goals', icon: Target },
+    { id: 'admin-assignments', label: 'Assignments Matrix', icon: Share2 },
     { id: 'admin-followups', label: 'Follow-ups', icon: Clock },
     { id: 'admin-documents', label: 'Documents', icon: Files },
     { id: 'admin-cibil', label: 'CIBIL Bureau', icon: ShieldAlert },
     { id: 'admin-champions', label: 'Champions Board', icon: Trophy },
+    { id: 'admin-reviews', label: 'Customer Reviews', icon: Star },
     { id: 'admin-reports', label: 'Reporting Center', icon: FileSpreadsheet },
     { id: 'admin-analytics', label: 'Marketing Analytics', icon: TrendingUp },
     { id: 'admin-settings', label: 'Control Center', icon: Settings },
     { id: 'admin-audit', label: 'Audit Logs', icon: History },
   ];
 
+  const partnerNavItems = [
+    { id: 'partner-dashboard', label: 'Partner Dashboard', icon: LayoutDashboard },
+    { id: 'partner-customers', label: 'My Borrowers', icon: Users },
+    { id: 'partner-applications', label: 'My Applications', icon: Briefcase },
+    { id: 'partner-leads', label: 'My Leads', icon: FolderPlus },
+    { id: 'partner-targets', label: 'My Targets', icon: Target },
+    { id: 'partner-reviews', label: 'Customer Reviews', icon: Star },
+    { id: 'partner-documents', label: 'Documents', icon: Files },
+    { id: 'partner-settings', label: 'Profile & Settings', icon: Settings },
+  ];
+
   const associateNavItems = [
     { id: 'associate-dashboard', label: 'My Dashboard', icon: LayoutDashboard },
     { id: 'associate-leads', label: 'My Leads', icon: Users },
     { id: 'associate-applications', label: 'My Applications', icon: Briefcase },
+    { id: 'associate-customers', label: 'My Customers', icon: Users },
     { id: 'associate-followups', label: "Today's Follow-ups", icon: Clock },
     { id: 'associate-documents', label: 'Assigned Documents', icon: Files },
     { id: 'associate-cibil', label: 'CIBIL Check', icon: ShieldAlert },
     { id: 'associate-champions', label: 'Champions Board', icon: Trophy },
+    { id: 'associate-targets', label: 'Monthly Targets', icon: Target },
+    { id: 'associate-reviews', label: 'Customer Reviews', icon: Star },
     { id: 'associate-settings', label: 'Profile & Settings', icon: Settings },
   ];
 
-  const navItems = role === 'ADMIN' ? adminNavItems : associateNavItems;
+  const navItems =
+    role === 'ADMIN'
+      ? adminNavItems
+      : role === 'PARTNER'
+      ? partnerNavItems
+      : associateNavItems;
+
+  const roleLabel =
+    role === 'ADMIN'
+      ? 'Super Admin'
+      : role === 'PARTNER'
+      ? 'Channel Partner'
+      : 'Associate';
 
   return (
     <>
@@ -99,7 +135,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {/* Role Badge Banner */}
         <div className="px-5 py-2.5 bg-[#F2F1ED] border-b border-[#E8E6E1] flex items-center justify-between">
           <span className="sans-micro text-[9px] text-[#5A5854]">
-            {role === 'ADMIN' ? 'ARCHIVE • ADMIN' : 'WORKSPACE • ASSOCIATE'}
+            {role === 'ADMIN'
+              ? 'CONTROL • ADMIN'
+              : role === 'PARTNER'
+              ? 'CHANNEL • PARTNER'
+              : 'WORKSPACE • ASSOCIATE'}
           </span>
           <span
             className={`sans-micro text-[9px] px-2.5 py-0.5 rounded-full border ${
@@ -108,7 +148,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 : 'bg-white text-[#8C6D37] border-[#B89758]/50'
             }`}
           >
-            {role === 'ADMIN' ? 'Super Admin' : user?.id || 'Associate'}
+            {user?.id || roleLabel}
           </span>
         </div>
 

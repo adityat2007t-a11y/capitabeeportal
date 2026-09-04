@@ -50,7 +50,7 @@ export interface TableCheckResult {
 }
 
 /**
- * Diagnostic utility to probe tables and check connection health
+ * Diagnostic utility to check Supabase connection health without attempting unauthorized direct table reads
  */
 export async function testSupabaseConnection(): Promise<{
   configured: boolean;
@@ -67,79 +67,38 @@ export async function testSupabaseConnection(): Promise<{
       connected: false,
       latencyMs: 0,
       tables: [],
-      missingTables: [
-        'profiles',
-        'leads',
-        'customers',
-        'applications',
-        'stage_updates',
-        'documents',
-        'notifications',
-        'messages',
-        'reviews',
-        'targets',
-        'activity_logs',
-      ],
+      missingTables: [],
       error: 'VITE_SUPABASE_ANON_KEY environment variable is not configured.',
     };
   }
 
-  const expectedTables = [
-    'profiles',
-    'leads',
-    'customers',
-    'applications',
-    'stage_updates',
-    'documents',
-    'notifications',
-    'messages',
-    'reviews',
-    'targets',
-    'activity_logs',
-  ];
+  try {
+    // Ping Supabase auth health endpoint to verify connectivity
+    const res = await fetch(`${SUPABASE_URL}/auth/v1/health`, {
+      headers: {
+        apikey: SUPABASE_ANON_KEY,
+      },
+    });
 
-  const tableResults: TableCheckResult[] = [];
-  const missingTables: string[] = [];
+    const latencyMs = Date.now() - start;
+    const connected = res.ok;
 
-  for (const table of expectedTables) {
-    try {
-      const { count, error } = await supabase
-        .from(table)
-        .select('*', { count: 'exact', head: true });
-
-      if (error) {
-        tableResults.push({
-          name: table,
-          exists: false,
-          error: error.message,
-        });
-        missingTables.push(table);
-      } else {
-        tableResults.push({
-          name: table,
-          exists: true,
-          rowCount: count ?? 0,
-        });
-      }
-    } catch (err: any) {
-      tableResults.push({
-        name: table,
-        exists: false,
-        error: err.message,
-      });
-      missingTables.push(table);
-    }
+    return {
+      configured: true,
+      connected,
+      latencyMs,
+      tables: [],
+      missingTables: [],
+      error: connected ? undefined : `Supabase connection returned status ${res.status}`,
+    };
+  } catch (err: any) {
+    return {
+      configured: true,
+      connected: false,
+      latencyMs: Date.now() - start,
+      tables: [],
+      missingTables: [],
+      error: err?.message || 'Failed to reach Supabase endpoint',
+    };
   }
-
-  const latencyMs = Date.now() - start;
-  const anyConnected = tableResults.some(t => t.exists);
-
-  return {
-    configured: true,
-    connected: anyConnected,
-    latencyMs,
-    tables: tableResults,
-    missingTables,
-    error: missingTables.length > 0 ? `Missing or restricted tables: ${missingTables.join(', ')}` : undefined,
-  };
 }

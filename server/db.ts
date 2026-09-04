@@ -8,6 +8,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import {
   User,
+  UserRole,
   Lead,
   Application,
   FollowUp,
@@ -19,6 +20,9 @@ import {
   NotificationLog,
   InternalMessage,
   CompanySettings,
+  CustomerReview,
+  AssociateTarget,
+  Customer,
 } from '../src/types';
 import {
   BRAND,
@@ -37,7 +41,7 @@ export interface StoredUser extends User {
 export interface SessionData {
   token: string;
   userId: string;
-  role: 'ADMIN' | 'ASSOCIATE';
+  role: UserRole;
   createdAt: string;
   expiresAt: string;
 }
@@ -47,6 +51,8 @@ export interface DatabaseSchema {
   sessions: SessionData[];
   leads: Lead[];
   applications: Application[];
+  customers: Customer[];
+  targets: AssociateTarget[];
   stageUpdates: StageUpdateLog[];
   documents: DocumentRecord[];
   followUps: FollowUp[];
@@ -55,6 +61,7 @@ export interface DatabaseSchema {
   cibilChecks: CibilCheckRecord[];
   notifications: NotificationLog[];
   internalMessages: InternalMessage[];
+  reviews: CustomerReview[];
   settings: CompanySettings;
   counters: {
     associateSeq: number;
@@ -139,6 +146,8 @@ export class Database {
       sessions: [],
       leads: [], // Strictly no fake leads
       applications: [], // Strictly no fake applications
+      customers: [],
+      targets: [],
       stageUpdates: [],
       documents: [],
       followUps: [],
@@ -159,9 +168,10 @@ export class Database {
       cibilChecks: [], // Strictly no fake CIBIL records
       notifications: [],
       internalMessages: [],
+      reviews: [],
       settings: initialSettings,
       counters: {
-        associateSeq: 1000,
+        associateSeq: 999,
         leadSeq: 0,
         applicationSeq: 0,
         documentSeq: 0,
@@ -198,6 +208,24 @@ export class Database {
         if (parsed.settings) {
           parsed.settings.lendingPartners = LENDING_PARTNERS;
         }
+        if (!Array.isArray(parsed.reviews)) {
+          parsed.reviews = [];
+        }
+        if (!Array.isArray(parsed.customers)) {
+          parsed.customers = [];
+        }
+        if (!Array.isArray(parsed.targets)) {
+          parsed.targets = [];
+        }
+        if (!parsed.counters) {
+          parsed.counters = {
+            associateSeq: 999,
+            leadSeq: 0,
+            applicationSeq: 0,
+            documentSeq: 0,
+            auditSeq: 1,
+          };
+        }
         return parsed;
       }
     } catch (err) {
@@ -222,23 +250,48 @@ export class Database {
     return this.data;
   }
 
-  // ID Generators
-  public nextAssociateId(customId?: string): string {
+  // Sequential Atomic CB ID Generator
+  public nextCbId(customId?: string): string {
     if (customId) {
       const normalized = customId.toUpperCase().trim();
-      if (!/^CB-\d{4}$/.test(normalized)) {
-        throw new Error('Associate ID must match format CB-XXXX (e.g. CB-1001)');
+      if (!/^CB-\d{4,}$/.test(normalized)) {
+        throw new Error('ID must match format CB-XXXX (e.g. CB-1001)');
       }
       const exists = this.data.users.some(u => u.id === normalized || u.employeeId === normalized);
       if (exists) {
-        throw new Error(`Associate ID ${normalized} is already taken`);
+        throw new Error(`ID ${normalized} is already taken`);
       }
       return normalized;
     }
-    this.data.counters.associateSeq += 1;
-    const generated = `CB-${this.data.counters.associateSeq}`;
+
+    // Find highest CB number in users
+    let highestNum = 999;
+    for (const u of this.data.users) {
+      const match = u.id?.match(/^CB-(\d+)$/i) || u.employeeId?.match(/^CB-(\d+)$/i);
+      if (match) {
+        const n = parseInt(match[1], 10);
+        if (!isNaN(n) && n > highestNum) {
+          highestNum = n;
+        }
+      }
+    }
+    if (this.data.counters.associateSeq > highestNum) {
+      highestNum = this.data.counters.associateSeq;
+    }
+
+    const nextNum = highestNum + 1;
+    this.data.counters.associateSeq = nextNum;
+    const generated = `CB-${nextNum}`;
     this.saveDatabase();
     return generated;
+  }
+
+  public nextAssociateId(customId?: string): string {
+    return this.nextCbId(customId);
+  }
+
+  public nextPartnerId(customId?: string): string {
+    return this.nextCbId(customId);
   }
 
   public nextLeadId(): string {
@@ -265,7 +318,17 @@ export class Database {
     return `DOC-${year}-${pad}`;
   }
 
-  public logAudit(actor: { id: string; name: string; role: 'ADMIN' | 'ASSOCIATE' }, action: string, entity: string, entityId: string, details?: string) {
+  public nextCustomerId(): string {
+    const year = new Date().getFullYear();
+    const rand = Math.floor(100000 + Math.random() * 900000);
+    return `CUST-${year}-${rand}`;
+  }
+
+  public nextReviewId(): string {
+    return `REV-${Date.now()}`;
+  }
+
+  public logAudit(actor: { id: string; name: string; role: UserRole | string }, action: string, entity: string, entityId: string, details?: string) {
     this.data.counters.auditSeq += 1;
     const pad = String(this.data.counters.auditSeq).padStart(6, '0');
     const log: AuditLog = {

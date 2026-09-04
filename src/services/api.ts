@@ -63,29 +63,27 @@ export const api = {
   // AUTHENTICATION
   // -------------------------------------------------------------
   async login(email: string, password: string): Promise<{ token: string; user: User }> {
-    if (isSupabaseConfigured()) {
-      try {
-        const { user, session } = await supabaseService.signInWithPassword(email, password);
-        const token = session?.access_token || `sb_token_${Date.now()}`;
-        return { token, user };
-      } catch (err: any) {
-        // Fallback to server endpoint if Supabase Auth user doesn't exist yet
-        console.warn('Supabase Auth attempt:', err.message);
-      }
-    }
-
     const res = await fetch(`${BASE_URL}/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password }),
     });
-    return handleResponse<{ token: string; user: User }>(res);
+    const data = await handleResponse<{ token: string; user: User }>(res);
+
+    // If Supabase Auth is configured, also attempt to keep Supabase session in sync
+    if (isSupabaseConfigured()) {
+      try {
+        await supabaseService.signInWithPassword(email, password).catch(() => {});
+      } catch {}
+    }
+
+    return data;
   },
 
   async logout(): Promise<void> {
     try {
       if (isSupabaseConfigured()) {
-        await supabaseService.signOut();
+        await supabaseService.signOut().catch(() => {});
       }
       await fetch(`${BASE_URL}/auth/logout`, {
         method: 'POST',
@@ -99,11 +97,6 @@ export const api = {
   },
 
   async getMe(): Promise<{ user: User }> {
-    if (isSupabaseConfigured()) {
-      const user = await supabaseService.getCurrentUser();
-      if (user) return { user };
-    }
-
     const res = await fetch(`${BASE_URL}/auth/me`, {
       headers: getAuthHeaders(),
     });
@@ -123,47 +116,6 @@ export const api = {
   // ASSOCIATES MANAGEMENT (ADMIN ONLY)
   // -------------------------------------------------------------
   async getAssociates(): Promise<{ associates: (User & { stats: any })[] }> {
-    if (isSupabaseConfigured()) {
-      const [assocs, leads, apps] = await Promise.all([
-        supabaseService.getAssociates(),
-        supabaseService.getLeads(),
-        supabaseService.getApplications(),
-      ]);
-
-      const enriched = assocs.map(u => {
-        const assignedLeads = leads.filter(l => l.assignedAssociateId === u.id);
-        const assignedApps = apps.filter(a => a.assignedAssociateId === u.id);
-        const sanctionedApps = assignedApps.filter(a => a.status === 'Sanctioned' || a.status === 'Disbursed');
-        const disbursedApps = assignedApps.filter(a => a.status === 'Disbursed');
-        const disbursedAmount = disbursedApps.reduce((acc, a) => acc + (a.disbursementAmount || 0), 0);
-        const totalLoanValue = assignedApps.reduce((acc, a) => acc + (a.requestedAmount || 0), 0);
-
-        const target = u.target || 5000000;
-        const achievementPct = target > 0 ? Math.round((disbursedAmount / target) * 100) : 0;
-        const conversionRate = assignedLeads.length > 0 ? Math.round((disbursedApps.length / assignedLeads.length) * 100) : 0;
-
-        return {
-          ...u,
-          stats: {
-            totalLeads: assignedLeads.length,
-            newLeads: assignedLeads.filter(l => l.leadStatus === 'New').length,
-            contacted: assignedLeads.filter(l => l.leadStatus === 'Contacted').length,
-            followups: 0,
-            applications: assignedApps.length,
-            sanctions: sanctionedApps.length,
-            disbursements: disbursedApps.length,
-            totalLoanValue,
-            disbursedAmount,
-            target,
-            achievementPct,
-            conversionRate,
-          },
-        };
-      });
-
-      return { associates: enriched };
-    }
-
     const res = await fetch(`${BASE_URL}/associates`, {
       headers: getAuthHeaders(),
     });
@@ -171,15 +123,6 @@ export const api = {
   },
 
   async createAssociate(data: any): Promise<{ success: boolean; associate: User; message: string }> {
-    if (isSupabaseConfigured()) {
-      const associate = await supabaseService.createAssociate(data);
-      return {
-        success: true,
-        associate,
-        message: `Associate ${associate.id} created successfully in Supabase.`,
-      };
-    }
-
     const res = await fetch(`${BASE_URL}/associates`, {
       method: 'POST',
       headers: getAuthHeaders(),
@@ -189,11 +132,6 @@ export const api = {
   },
 
   async updateAssociate(id: string, data: Partial<User>): Promise<{ success: boolean; associate: User }> {
-    if (isSupabaseConfigured()) {
-      const associate = await supabaseService.updateAssociate(id, data);
-      return { success: true, associate };
-    }
-
     const res = await fetch(`${BASE_URL}/associates/${id}`, {
       method: 'PATCH',
       headers: getAuthHeaders(),
@@ -215,15 +153,6 @@ export const api = {
   // LEADS CRM
   // -------------------------------------------------------------
   async getLeads(params?: Record<string, any>): Promise<{ leads: Lead[] }> {
-    if (isSupabaseConfigured()) {
-      const leads = await supabaseService.getLeads({
-        assignedAssociateId: params?.associateId,
-        status: params?.status,
-        limit: params?.limit,
-      });
-      return { leads };
-    }
-
     const query = params ? '?' + new URLSearchParams(params).toString() : '';
     const res = await fetch(`${BASE_URL}/leads${query}`, {
       headers: getAuthHeaders(),
@@ -241,11 +170,6 @@ export const api = {
   },
 
   async createLead(leadData: Partial<Lead> & { forceDuplicate?: boolean }): Promise<{ success: boolean; lead: Lead }> {
-    if (isSupabaseConfigured()) {
-      const lead = await supabaseService.createLead(leadData);
-      return { success: true, lead };
-    }
-
     const res = await fetch(`${BASE_URL}/leads`, {
       method: 'POST',
       headers: getAuthHeaders(),
@@ -261,11 +185,6 @@ export const api = {
     applications: Application[];
     audit: AuditLog[];
   }> {
-    if (isSupabaseConfigured()) {
-      const data = await supabaseService.getLeadById(id);
-      return { ...data, audit: [] };
-    }
-
     const res = await fetch(`${BASE_URL}/leads/${id}`, {
       headers: getAuthHeaders(),
     });
@@ -279,11 +198,6 @@ export const api = {
   },
 
   async updateLead(id: string, updates: Partial<Lead>): Promise<{ success: boolean; lead: Lead }> {
-    if (isSupabaseConfigured()) {
-      const lead = await supabaseService.updateLead(id, updates);
-      return { success: true, lead };
-    }
-
     const res = await fetch(`${BASE_URL}/leads/${id}`, {
       method: 'PATCH',
       headers: getAuthHeaders(),
@@ -292,12 +206,7 @@ export const api = {
     return handleResponse<{ success: boolean; lead: Lead }>(res);
   },
 
-  async assignLead(id: string, associateId: string | null, associateName?: string | null): Promise<{ success: boolean; lead: Lead }> {
-    if (isSupabaseConfigured()) {
-      const lead = await supabaseService.assignLead(id, associateId, associateName || null);
-      return { success: true, lead };
-    }
-
+  async assignLead(id: string, associateId: string | null, _associateName?: string | null): Promise<{ success: boolean; lead: Lead }> {
     const res = await fetch(`${BASE_URL}/leads/${id}/assign`, {
       method: 'POST',
       headers: getAuthHeaders(),
@@ -346,29 +255,40 @@ export const api = {
   // APPLICATIONS & 12-STAGE LOAN PIPELINE
   // -------------------------------------------------------------
   async getApplications(params?: Record<string, any>): Promise<{ applications: Application[] }> {
-    if (isSupabaseConfigured()) {
-      const applications = await supabaseService.getApplications({
-        assignedAssociateId: params?.associateId,
-        status: params?.status,
-        stage: params?.stage ? Number(params.stage) : undefined,
-        limit: params?.limit,
-      });
-      return { applications };
-    }
-
     const query = params ? '?' + new URLSearchParams(params).toString() : '';
     const res = await fetch(`${BASE_URL}/applications${query}`, {
       headers: getAuthHeaders(),
     });
-    return handleResponse<{ applications: Application[] }>(res);
+    const data = await handleResponse<{ applications: Application[] }>(res);
+    const apiFound = Boolean(data?.applications?.some(a => a.id === 'APP-2026-000014'));
+    console.log('[DIAGNOSTIC TRACE] Layer 1 (/api/applications response) & Layer 2 (api.ts mapping):', {
+      API_FOUND: apiFound,
+      MAPPED_FOUND: apiFound,
+      targetId: 'APP-2026-000014',
+      totalApplications: data?.applications?.length || 0,
+    });
+    return data;
+  },
+
+  async submitWebsiteLead(leadData: any): Promise<{ success: boolean; leadId: string; message: string }> {
+    const res = await fetch(`${BASE_URL}/website/leads`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(leadData),
+    });
+    return handleResponse<{ success: boolean; leadId: string; message: string }>(res);
+  },
+
+  async submitWebsiteApplication(appData: any): Promise<{ success: boolean; applicationId: string; leadId: string; application: Application; message: string }> {
+    const res = await fetch(`${BASE_URL}/website/applications`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(appData),
+    });
+    return handleResponse<{ success: boolean; applicationId: string; leadId: string; application: Application; message: string }>(res);
   },
 
   async createApplication(appData: any): Promise<{ success: boolean; application: Application; whatsappNotification?: any }> {
-    if (isSupabaseConfigured()) {
-      const application = await supabaseService.createApplication(appData);
-      return { success: true, application };
-    }
-
     const res = await fetch(`${BASE_URL}/applications`, {
       method: 'POST',
       headers: getAuthHeaders(),
@@ -382,10 +302,6 @@ export const api = {
     documents: DocumentRecord[];
     stageUpdates: StageUpdateLog[];
   }> {
-    if (isSupabaseConfigured()) {
-      return supabaseService.getApplicationById(id);
-    }
-
     const res = await fetch(`${BASE_URL}/applications/${id}`, {
       headers: getAuthHeaders(),
     });
@@ -397,11 +313,6 @@ export const api = {
   },
 
   async updateApplication(id: string, updates: Partial<Application>): Promise<{ success: boolean; application: Application }> {
-    if (isSupabaseConfigured()) {
-      const application = await supabaseService.updateApplication(id, updates);
-      return { success: true, application };
-    }
-
     const res = await fetch(`${BASE_URL}/applications/${id}`, {
       method: 'PATCH',
       headers: getAuthHeaders(),
@@ -416,11 +327,6 @@ export const api = {
     newStatus: string,
     internalNote?: string
   ): Promise<{ success: boolean; application: Application; stageUpdate: StageUpdateLog; whatsappNotification?: any }> {
-    if (isSupabaseConfigured()) {
-      const result = await supabaseService.updateApplicationStage(id, stageNumber, newStatus, internalNote);
-      return { success: true, ...result };
-    }
-
     const res = await fetch(`${BASE_URL}/applications/${id}/stages`, {
       method: 'POST',
       headers: getAuthHeaders(),
@@ -433,12 +339,8 @@ export const api = {
   // DOCUMENTS & DOCUMENT REQUESTS
   // -------------------------------------------------------------
   async getDocuments(applicationId?: string): Promise<{ documents: DocumentRecord[] }> {
-    if (isSupabaseConfigured()) {
-      const documents = await supabaseService.getDocuments(applicationId);
-      return { documents };
-    }
-
-    const res = await fetch(`${BASE_URL}/documents`, {
+    const query = applicationId ? `?applicationId=${encodeURIComponent(applicationId)}` : '';
+    const res = await fetch(`${BASE_URL}/documents${query}`, {
       headers: getAuthHeaders(),
     });
     return handleResponse<{ documents: DocumentRecord[] }>(res);
@@ -449,11 +351,6 @@ export const api = {
     documentType: string,
     customDocumentName?: string
   ): Promise<{ success: boolean; document: DocumentRecord; whatsappNotification?: any }> {
-    if (isSupabaseConfigured()) {
-      const document = await supabaseService.requestDocument(applicationId, documentType, customDocumentName);
-      return { success: true, document };
-    }
-
     const res = await fetch(`${BASE_URL}/applications/${applicationId}/documents/request`, {
       method: 'POST',
       headers: getAuthHeaders(),
@@ -482,11 +379,6 @@ export const api = {
     status: 'Verified' | 'Rejected' | 'Re-upload Required',
     rejectedReason?: string
   ): Promise<{ success: boolean; document: DocumentRecord; whatsappNotification?: any }> {
-    if (isSupabaseConfigured()) {
-      const document = await supabaseService.reviewDocument(documentId, status, rejectedReason);
-      return { success: true, document };
-    }
-
     const res = await fetch(`${BASE_URL}/documents/${documentId}/review`, {
       method: 'POST',
       headers: getAuthHeaders(),
@@ -499,96 +391,96 @@ export const api = {
   // CUSTOMERS (SHARED WITH CAPITABEE WEBSITE)
   // -------------------------------------------------------------
   async getCustomers(params?: Record<string, any>): Promise<{ customers: Customer[] }> {
-    if (isSupabaseConfigured()) {
-      const customers = await supabaseService.getCustomers({ limit: params?.limit });
-      return { customers };
-    }
-
-    // Fallback: derive customers from applications
-    const appsRes = await this.getApplications();
-    const map = new Map<string, Customer>();
-    (appsRes.applications || []).forEach(a => {
-      const key = a.customerPhone || a.customerName;
-      if (!map.has(key)) {
-        map.set(key, {
-          id: `CUST-${a.id.replace('APP-', '')}`,
-          name: a.customerName,
-          mobile: a.customerPhone,
-          email: a.customerEmail,
-          city: a.city,
-          state: a.state,
-          assignedAssociateId: a.assignedAssociateId,
-          assignedAssociateName: a.assignedAssociateName,
-          totalApplicationsCount: 1,
-          totalDisbursedAmount: a.disbursementAmount || 0,
-          createdAt: a.createdDate,
-          updatedAt: a.updatedDate,
-        });
-      } else {
-        const c = map.get(key)!;
-        c.totalApplicationsCount = (c.totalApplicationsCount || 0) + 1;
-        c.totalDisbursedAmount = (c.totalDisbursedAmount || 0) + (a.disbursementAmount || 0);
-      }
+    const query = params ? '?' + new URLSearchParams(params).toString() : '';
+    const res = await fetch(`${BASE_URL}/customers${query}`, {
+      headers: getAuthHeaders(),
     });
-
-    return { customers: Array.from(map.values()) };
+    return handleResponse<{ customers: Customer[] }>(res);
   },
 
   // -------------------------------------------------------------
   // REVIEWS & FEEDBACK
   // -------------------------------------------------------------
-  async getReviews(): Promise<{ reviews: CustomerReview[] }> {
-    if (isSupabaseConfigured()) {
-      const reviews = await supabaseService.getReviews();
-      return { reviews };
-    }
-    return { reviews: [] };
+  async getReviews(statusFilter?: string): Promise<{ reviews: CustomerReview[] }> {
+    const params = statusFilter && statusFilter !== 'ALL' ? `?status=${encodeURIComponent(statusFilter)}` : '';
+    const res = await fetch(`${BASE_URL}/reviews${params}`, {
+      headers: getAuthHeaders(),
+    });
+    return handleResponse<{ reviews: CustomerReview[] }>(res);
   },
 
   async respondToReview(id: string, response: string, responderName: string): Promise<{ success: boolean; review: CustomerReview }> {
-    if (isSupabaseConfigured()) {
-      const review = await supabaseService.respondToReview(id, response, responderName);
-      return { success: true, review };
-    }
-    throw new Error('Supabase is not configured.');
+    const res = await fetch(`${BASE_URL}/reviews/${id}/respond`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ response, responderName }),
+    });
+    return handleResponse<{ success: boolean; review: CustomerReview }>(res);
+  },
+
+  async updateReviewStatus(id: string, status: CustomerReview['status']): Promise<{ success: boolean; review: CustomerReview }> {
+    const res = await fetch(`${BASE_URL}/reviews/${id}/status`, {
+      method: 'PATCH',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ status }),
+    });
+    return handleResponse<{ success: boolean; review: CustomerReview }>(res);
+  },
+
+  async createReview(reviewData: {
+    customerName: string;
+    rating: number;
+    comment: string;
+    applicationId?: string;
+    customerId?: string;
+    status?: CustomerReview['status'];
+  }): Promise<{ success: boolean; review: CustomerReview }> {
+    const res = await fetch(`${BASE_URL}/reviews`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(reviewData),
+    });
+    return handleResponse<{ success: boolean; review: CustomerReview }>(res);
   },
 
   // -------------------------------------------------------------
   // TARGETS & PERFORMANCE
   // -------------------------------------------------------------
   async getTargets(monthYear?: string): Promise<{ targets: AssociateTarget[] }> {
-    if (isSupabaseConfigured()) {
-      const targets = await supabaseService.getTargets(monthYear);
-      return { targets };
-    }
-    return { targets: [] };
+    const params = monthYear ? `?monthYear=${encodeURIComponent(monthYear)}` : '';
+    const res = await fetch(`${BASE_URL}/targets${params}`, {
+      headers: getAuthHeaders(),
+    });
+    return handleResponse<{ targets: AssociateTarget[] }>(res);
   },
 
   async updateTarget(targetData: Partial<AssociateTarget>): Promise<{ success: boolean }> {
-    if (isSupabaseConfigured()) {
-      await supabaseService.updateTarget(targetData);
-      return { success: true };
-    }
-    return { success: true };
+    const res = await fetch(`${BASE_URL}/targets`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(targetData),
+    });
+    return handleResponse<{ success: boolean }>(res);
   },
 
   // -------------------------------------------------------------
   // INTERNAL MESSAGES
   // -------------------------------------------------------------
   async getMessages(recipientId?: string): Promise<{ messages: InternalMessage[] }> {
-    if (isSupabaseConfigured()) {
-      const messages = await supabaseService.getMessages(recipientId);
-      return { messages };
-    }
-    return { messages: [] };
+    const params = recipientId ? `?recipientId=${encodeURIComponent(recipientId)}` : '';
+    const res = await fetch(`${BASE_URL}/messages${params}`, {
+      headers: getAuthHeaders(),
+    });
+    return handleResponse<{ messages: InternalMessage[] }>(res);
   },
 
   async sendMessage(msgData: Partial<InternalMessage>): Promise<{ success: boolean; message: InternalMessage }> {
-    if (isSupabaseConfigured()) {
-      const message = await supabaseService.sendMessage(msgData);
-      return { success: true, message };
-    }
-    throw new Error('Supabase is not configured.');
+    const res = await fetch(`${BASE_URL}/messages`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(msgData),
+    });
+    return handleResponse<{ success: boolean; message: InternalMessage }>(res);
   },
 
   // -------------------------------------------------------------
@@ -640,41 +532,6 @@ export const api = {
   // DASHBOARD STATS
   // -------------------------------------------------------------
   async getDashboardStats(): Promise<{ stats: any }> {
-    if (isSupabaseConfigured()) {
-      const [leads, apps, assocs] = await Promise.all([
-        supabaseService.getLeads(),
-        supabaseService.getApplications(),
-        supabaseService.getAssociates(),
-      ]);
-
-      const todayStr = new Date().toISOString().split('T')[0];
-      const totalLeads = leads.length;
-      const newLeadsToday = leads.filter(l => l.createdDate?.startsWith(todayStr)).length;
-      const activeApplications = apps.filter(a => a.status !== 'Closed' && a.status !== 'Rejected').length;
-      const totalSanctionAmount = apps.reduce((acc, a) => acc + (a.sanctionAmount || 0), 0);
-      const totalDisbursedAmount = apps.reduce((acc, a) => acc + (a.disbursementAmount || 0), 0);
-      const unassignedLeads = leads.filter(l => !l.assignedAssociateId).length;
-
-      const leadsByStatus: Record<string, number> = {};
-      leads.forEach(l => {
-        leadsByStatus[l.leadStatus] = (leadsByStatus[l.leadStatus] || 0) + 1;
-      });
-
-      return {
-        stats: {
-          totalLeads,
-          newLeadsToday,
-          activeApplications,
-          totalSanctionAmount,
-          totalDisbursedAmount,
-          pendingFollowUpsToday: 0,
-          totalAssociates: assocs.length,
-          unassignedLeads,
-          leadsByStatus,
-        },
-      };
-    }
-
     const res = await fetch(`${BASE_URL}/dashboard/stats`, {
       headers: getAuthHeaders(),
     });
@@ -744,22 +601,10 @@ export const api = {
       headers: getAuthHeaders(),
       body: JSON.stringify(data),
     });
-    const result = await handleResponse<{ success: boolean; status: string; message: string; log: NotificationLog }>(res);
-
-    // Also persist log to Supabase if configured
-    if (isSupabaseConfigured() && result.log) {
-      await supabaseService.logNotification(result.log);
-    }
-
-    return result;
+    return handleResponse<{ success: boolean; status: string; message: string; log: NotificationLog }>(res);
   },
 
   async getNotificationLogs(): Promise<{ logs: NotificationLog[] }> {
-    if (isSupabaseConfigured()) {
-      const logs = await supabaseService.getNotificationLogs();
-      if (logs.length > 0) return { logs };
-    }
-
     const res = await fetch(`${BASE_URL}/notifications/logs`, {
       headers: getAuthHeaders(),
     });
@@ -785,14 +630,7 @@ export const api = {
     return handleResponse<{ success: boolean; settings: CompanySettings }>(res);
   },
 
-  async getAuditLogs(params?: Record<string, any>): Promise<{ logs: AuditLog[]; auditLogs: AuditLog[] }> {
-    if (isSupabaseConfigured()) {
-      const logs = await supabaseService.getActivityLogs(params?.limit || 100);
-      if (logs.length > 0) {
-        return { logs, auditLogs: logs };
-      }
-    }
-
+  async getAuditLogs(_params?: Record<string, any>): Promise<{ logs: AuditLog[]; auditLogs: AuditLog[] }> {
     const res = await fetch(`${BASE_URL}/audit-logs`, {
       headers: getAuthHeaders(),
     });

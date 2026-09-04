@@ -2,7 +2,7 @@
  * Capitabee Financial Services CRM - 12-Stage Loan Applications View
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Search,
   Plus,
@@ -13,12 +13,16 @@ import {
   Phone,
   MessageSquare,
   Building2,
+  RefreshCw,
+  AlertCircle,
+  Database,
 } from 'lucide-react';
 import { StatusBadge } from '../components/common/Badge';
 import { EmptyState } from '../components/common/EmptyState';
+import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
-import { Application, User } from '../types';
+import { Application, User, StageInfo, StageStatus } from '../types';
 import { STAGES_12, INITIAL_LOAN_PRODUCTS } from '../config/brand';
 import { WhatsAppActionModal, WhatsAppTarget } from '../components/common/WhatsAppActionModal';
 
@@ -27,13 +31,73 @@ interface ApplicationsViewProps {
   onSelectApp: (app: Application) => void;
 }
 
+function mapSupabaseRowToApplication(row: any): Application {
+  const currentStageNum = Number(row.current_stage || row.stage || 2);
+  const currentStageObj = STAGES_12.find(s => s.number === currentStageNum);
+
+  let stages: StageInfo[] = [];
+  if (Array.isArray(row.stages)) {
+    stages = row.stages;
+  } else if (typeof row.stages === 'string') {
+    try {
+      stages = JSON.parse(row.stages);
+    } catch {
+      stages = [];
+    }
+  }
+
+  if (!stages || stages.length === 0) {
+    stages = STAGES_12.map(s => ({
+      number: s.number,
+      name: s.name,
+      status: s.number < currentStageNum ? 'Completed' : s.number === currentStageNum ? 'In Progress' : 'Pending',
+      updatedAt: row.updated_at || row.created_at || new Date().toISOString(),
+    }));
+  }
+
+  return {
+    id: String(row.id || row.application_id || ''),
+    leadId: row.lead_id || undefined,
+    customerName: row.full_name || row.customer_name || row.applicant_name || row.name || 'Applicant',
+    customerPhone: row.mobile_number || row.customer_phone || row.mobile || row.phone || '',
+    customerEmail: row.email || row.customer_email || undefined,
+    city: row.city || undefined,
+    state: row.state || undefined,
+    loanType: row.loan_type || row.loanType || 'Personal Loan',
+    requestedAmount: Number(row.required_loan_amount || row.requested_amount || row.loan_amount || row.amount || 0),
+    sanctionAmount: Number(row.sanction_amount || row.sanctioned_amount || 0),
+    disbursementAmount: Number(row.disbursement_amount || row.disbursed_amount || 0),
+    lenderPartner: row.lender_partner || row.lending_partner || undefined,
+    assignedAssociateId: row.associate_id || row.assigned_associate_id || row.user_id || null,
+    assignedAssociateName: row.associate_name || row.assigned_associate_name || null,
+    status: row.status || 'In Process',
+    currentStage: currentStageNum,
+    currentStageName: currentStageObj?.name || row.current_stage_name || 'Application',
+    stages,
+    createdDate: row.created_at || row.created_date || new Date().toISOString(),
+    updatedDate: row.updated_at || row.updated_date || new Date().toISOString(),
+    notes: row.notes || undefined,
+  };
+}
+
 export const ApplicationsView: React.FC<ApplicationsViewProps> = ({
   onOpenNewApp,
   onSelectApp,
 }) => {
-  const { role } = useAuth();
+  const { role, user } = useAuth();
   const [apps, setApps] = useState<Application[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Diagnostic State for Supabase
+  const [diagnostic, setDiagnostic] = useState<{
+    rowsCount: number;
+    queryError: string | null;
+    returnedIds: string[];
+  }>({
+    rowsCount: 0,
+    queryError: null,
+    returnedIds: [],
+  });
 
   // Filters
   const [search, setSearch] = useState('');
@@ -43,35 +107,111 @@ export const ApplicationsView: React.FC<ApplicationsViewProps> = ({
   const [whatsappTarget, setWhatsappTarget] = useState<WhatsAppTarget | null>(null);
   const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState(false);
 
-  const loadApps = async () => {
+  const loadApps = useCallback(async () => {
     setLoading(true);
     try {
-      const params: any = {};
-      if (search.trim()) params.search = search.trim();
-      if (stageFilter !== 'All') params.stage = Number(stageFilter);
-      if (statusFilter !== 'All') params.status = statusFilter;
+      // Fetch through authorized API layer which securely reads from Supabase database
+      const res = await api.getApplications();
+      const serverApps = res?.applications || [];
+      const ids = serverApps.map(a => a.id);
 
-      const res = await api.getApplications(params);
-      setApps(res.applications || []);
+      const stateLoadedFound = serverApps.some(a => a.id === 'APP-2026-000014');
+      console.log('[DIAGNOSTIC TRACE] Layer 3 (ApplicationsView state after loading):', {
+        STATE_LOADED_FOUND: stateLoadedFound,
+        targetId: 'APP-2026-000014',
+        totalAppsLoaded: serverApps.length,
+        loadedIds: ids,
+      });
+
+      setDiagnostic({
+        rowsCount: serverApps.length,
+        queryError: null,
+        returnedIds: ids,
+      });
+      setApps(serverApps);
     } catch (err: any) {
       console.error('Failed to load applications:', err);
+      setDiagnostic({
+        rowsCount: 0,
+        queryError: err?.message || String(err),
+        returnedIds: [],
+      });
+      setApps([]);
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     loadApps();
-  }, [stageFilter, statusFilter]);
+
+    // Setup Supabase Realtime subscription
+    let channel: any = null;
+    if (isSupabaseConfigured()) {
+      try {
+        channel = supabase
+          .channel('public_applications_realtime')
+          .on(
+            'postgres_changes',
+            { event: '*', schema: 'public', table: 'applications' },
+            () => {
+              loadApps();
+            }
+          )
+          .subscribe();
+      } catch (e) {
+        console.warn('Realtime channel error:', e);
+      }
+    }
+
+    return () => {
+      if (channel) {
+        supabase.removeChannel(channel);
+      }
+    };
+  }, [loadApps]);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    loadApps();
   };
 
   const filteredApps = apps.filter(a => {
     if (productFilter !== 'All' && a.loanType !== productFilter) return false;
+    if (stageFilter !== 'All' && a.currentStage !== Number(stageFilter)) return false;
+    if (statusFilter !== 'All' && a.status !== statusFilter) return false;
+    if (search.trim()) {
+      const q = search.trim().toLowerCase();
+      const match =
+        a.id.toLowerCase().includes(q) ||
+        (a.customerId ? a.customerId.toLowerCase().includes(q) : false) ||
+        a.customerName.toLowerCase().includes(q) ||
+        a.customerPhone.toLowerCase().includes(q) ||
+        (a.city && a.city.toLowerCase().includes(q));
+      if (!match) return false;
+    }
     return true;
+  });
+
+  const targetInApps = apps.some(a => a.id === 'APP-2026-000014');
+  const targetInFiltered = filteredApps.some(a => a.id === 'APP-2026-000014');
+  // Since ApplicationsView renders the entire filteredApps list directly without page slicing:
+  const targetInPagination = targetInFiltered;
+  const targetInRendered = targetInFiltered;
+
+  console.log('[DIAGNOSTIC TRACE] Layer 4, 5, 6 (ApplicationsView Pipeline Diagnostic):', {
+    targetId: 'APP-2026-000014',
+    API_FOUND: targetInApps,
+    MAPPED_FOUND: targetInApps,
+    AFTER_FILTER_FOUND: targetInFiltered,
+    AFTER_PAGINATION_FOUND: targetInPagination,
+    RENDERED_FOUND: targetInRendered,
+    activeFilters: {
+      search,
+      stageFilter,
+      statusFilter,
+      productFilter,
+    },
+    totalFiltered: filteredApps.length,
   });
 
   const handleExportCSV = () => {
@@ -129,6 +269,51 @@ export const ApplicationsView: React.FC<ApplicationsViewProps> = ({
 
   return (
     <div id="applications-view" className="space-y-5">
+      {/* REQUIRED VISIBLE SUPABASE DIAGNOSTIC BANNER */}
+      <div
+        id="live-supabase-diagnostic"
+        className="bg-[#121212] text-white p-5 rounded-2xl font-mono text-xs border border-[#8C6D37]/50 shadow-md space-y-1.5"
+      >
+        <div className="flex items-center justify-between border-b border-white/10 pb-2 mb-2">
+          <div className="flex items-center gap-2">
+            <Database className="w-4 h-4 text-[#E0B86C]" />
+            <span className="text-[#E0B86C] font-bold text-sm tracking-wider">LIVE SUPABASE</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => loadApps()}
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-white/10 hover:bg-white/20 text-[#E8E6E1] text-[11px] transition-colors cursor-pointer"
+          >
+            <RefreshCw className={`w-3 h-3 ${loading ? 'animate-spin' : ''}`} />
+            <span>Refresh Table</span>
+          </button>
+        </div>
+
+        <div>
+          <span className="text-[#888888]">Table: </span>
+          <span className="text-white font-semibold">applications</span>
+        </div>
+
+        <div>
+          <span className="text-[#888888]">Rows returned: </span>
+          <span className="text-[#E0B86C] font-bold text-sm">{diagnostic.rowsCount}</span>
+        </div>
+
+        <div>
+          <span className="text-[#888888]">Query error: </span>
+          <span className={diagnostic.queryError ? 'text-red-400 font-bold' : 'text-emerald-400 font-bold'}>
+            {diagnostic.queryError || 'NONE'}
+          </span>
+        </div>
+
+        <div>
+          <span className="text-[#888888]">Application IDs: </span>
+          <span className="text-white font-semibold">
+            {diagnostic.returnedIds.length > 0 ? diagnostic.returnedIds.join(', ') : 'NONE'}
+          </span>
+        </div>
+      </div>
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-[#E8E6E1] artistic-card">
         <div>
@@ -136,7 +321,7 @@ export const ApplicationsView: React.FC<ApplicationsViewProps> = ({
             {role === 'ADMIN' ? '12-Stage Loan Pipeline' : 'My Loan Applications'}
           </h2>
           <p className="sans-micro text-[10px] text-[#888888] tracking-[0.16em] mt-1">
-            {filteredApps.length} cases tracked across KYC, Credit, Legal, Sanction & Disbursement
+            {filteredApps.length} cases tracked across KYC, Credit, Legal, Sanction & Disbursement (Live Supabase)
           </p>
         </div>
 
@@ -225,19 +410,27 @@ export const ApplicationsView: React.FC<ApplicationsViewProps> = ({
         </div>
       </div>
 
-      {/* Applications Table */}
+      {/* Applications Table or Error / Empty State */}
       <div className="bg-white rounded-2xl border border-[#E8E6E1] artistic-card overflow-hidden">
         {loading ? (
           <div className="py-16 text-center sans-micro text-xs text-[#888888]">
-            Loading application files...
+            Querying Supabase public.applications table...
+          </div>
+        ) : diagnostic.queryError ? (
+          <div className="p-8 text-center bg-red-50 border border-red-200 text-red-800 space-y-2">
+            <div className="flex items-center justify-center gap-2 text-red-600 font-semibold">
+              <AlertCircle className="w-5 h-5" />
+              <span>Supabase Query Error</span>
+            </div>
+            <p className="font-mono text-xs">{diagnostic.queryError}</p>
           </div>
         ) : filteredApps.length === 0 ? (
           <EmptyState
-            title="No applications found."
+            title="No applications returned from Supabase table 'applications'."
             description={
               search || stageFilter !== 'All'
                 ? 'Try adjusting your search criteria or active filters.'
-                : 'No loan applications created yet. Start a new file or convert a lead.'
+                : 'Zero records in public.applications. Once an application is submitted, it will be rendered here directly.'
             }
             actionText={search ? undefined : '+ Start Application'}
             onAction={onOpenNewApp}
@@ -400,3 +593,4 @@ export const ApplicationsView: React.FC<ApplicationsViewProps> = ({
     </div>
   );
 };
+

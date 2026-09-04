@@ -2,6 +2,7 @@
  * Capitabee Financial Services CRM - Server Entry Point
  */
 
+import 'dotenv/config';
 import express from 'express';
 import path from 'node:path';
 import { createServer as createViteServer } from 'vite';

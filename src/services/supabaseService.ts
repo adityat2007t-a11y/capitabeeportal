@@ -24,6 +24,7 @@ import {
   CompanySettings,
   SupabaseConnectionStatus,
   StageInfo,
+  StageStatus,
 } from '../types';
 import { LOAN_STAGES } from '../config/brand';
 
@@ -103,38 +104,42 @@ function mapRowToApplication(row: any): Application {
     }
   }
 
+  const currentStageNum = Number(row.current_stage || row.stage || 2);
+  const currentStageObj = LOAN_STAGES.find(s => s.number === currentStageNum);
+
   if (!stages || stages.length === 0) {
     stages = LOAN_STAGES.map(s => ({
       number: s.number,
       name: s.name,
-      status: s.number < (row.current_stage || 2) ? 'Completed' : s.number === (row.current_stage || 2) ? 'In Progress' : 'Pending',
-      updatedAt: row.updated_at || new Date().toISOString(),
+      status: s.number < currentStageNum ? 'Completed' : s.number === currentStageNum ? 'In Progress' : 'Pending',
+      updatedAt: row.updated_at || row.updated_date || new Date().toISOString(),
     }));
   }
 
   return {
     id: row.id || row.application_id,
-    leadId: row.lead_id,
-    customerName: row.customer_name || 'Applicant',
-    customerPhone: row.customer_phone || row.mobile || '',
-    customerEmail: row.customer_email || row.email,
-    city: row.city,
-    state: row.state,
+    customerId: row.customer_id || row.customerId || undefined,
+    leadId: row.lead_id || undefined,
+    customerName: row.full_name || row.customer_name || row.applicant_name || 'Applicant',
+    customerPhone: row.mobile_number || row.customer_phone || row.mobile || row.phone || '',
+    customerEmail: row.email || row.customer_email || undefined,
+    city: row.city || undefined,
+    state: row.state || undefined,
     loanType: row.loan_type || 'Personal Loan',
-    requestedAmount: Number(row.requested_amount || row.amount || 0),
-    sanctionAmount: Number(row.sanction_amount || 0),
-    disbursementAmount: Number(row.disbursement_amount || 0),
-    assignedAssociateId: row.assigned_associate_id || null,
-    assignedAssociateName: row.assigned_associate_name || null,
+    requestedAmount: Number(row.required_loan_amount || row.requested_amount || row.loan_amount || row.amount || 0),
+    sanctionAmount: Number(row.sanction_amount || row.sanctioned_amount || 0),
+    disbursementAmount: Number(row.disbursement_amount || row.disbursed_amount || 0),
+    assignedAssociateId: row.associate_id || row.assigned_associate_id || row.user_id || null,
+    assignedAssociateName: row.associate_name || row.assigned_associate_name || null,
     status: row.status || 'In Process',
-    currentStage: Number(row.current_stage || 2),
-    currentStageName: row.current_stage_name || LOAN_STAGES.find(s => s.number === Number(row.current_stage || 2))?.name || 'Application',
+    currentStage: currentStageNum,
+    currentStageName: row.current_stage_name || currentStageObj?.name || 'Application',
     stages,
-    createdDate: row.created_date || row.created_at || new Date().toISOString(),
-    updatedDate: row.updated_date || row.updated_at || new Date().toISOString(),
+    createdDate: row.created_at || row.created_date || new Date().toISOString(),
+    updatedDate: row.updated_at || row.updated_date || new Date().toISOString(),
     expectedCompletionDate: row.expected_completion_date,
-    notes: row.notes,
-    lenderPartner: row.lender_partner,
+    notes: row.notes || undefined,
+    lenderPartner: row.lender_partner || row.partner || undefined,
   };
 }
 
@@ -142,19 +147,23 @@ function mapRowToApplication(row: any): Application {
  * Maps database row to Customer
  */
 function mapRowToCustomer(row: any): Customer {
+  const custId = String(row.customer_id || row.id || '');
   return {
-    id: row.id || row.customer_id,
-    name: row.name || row.customer_name || 'Customer',
-    mobile: row.mobile || row.phone || '',
-    email: row.email,
-    city: row.city,
-    state: row.state,
-    pan: row.pan,
-    aadhaarLast4: row.aadhaar_last4,
-    employmentType: row.employment_type,
+    id: custId,
+    customerId: custId,
+    name: row.full_name || row.customer_name || row.applicant_name || row.name || 'Customer',
+    mobile: row.mobile_number || row.customer_phone || row.mobile || row.phone || '',
+    email: row.email || row.customer_email || undefined,
+    city: row.city || undefined,
+    state: row.state || undefined,
+    pan: row.pan || undefined,
+    aadhaarLast4: row.aadhaar_last4 || undefined,
+    employmentType: row.employment_type || 'Salaried',
     monthlyIncome: row.monthly_income ? Number(row.monthly_income) : undefined,
-    assignedAssociateId: row.assigned_associate_id || null,
-    assignedAssociateName: row.assigned_associate_name || null,
+    assignedAssociateId: row.associate_id || row.assigned_associate_id || null,
+    assignedAssociateName: row.associate_name || row.assigned_associate_name || null,
+    assignedPartnerId: row.partner_id || row.assigned_partner_id || null,
+    assignedPartnerName: row.partner_name || row.assigned_partner_name || null,
     totalApplicationsCount: Number(row.total_applications_count || 0),
     totalDisbursedAmount: Number(row.total_disbursed_amount || 0),
     createdAt: row.created_at || row.created_date || new Date().toISOString(),
@@ -188,19 +197,31 @@ function mapRowToDocument(row: any): DocumentRecord {
  * Maps database row to CustomerReview
  */
 function mapRowToReview(row: any): CustomerReview {
+  let statusVal: CustomerReview['status'] = 'Approved';
+  const rawStatus = (row.status || '').toLowerCase().trim();
+  if (rawStatus === 'pending') {
+    statusVal = 'Pending';
+  } else if (rawStatus === 'rejected') {
+    statusVal = 'Rejected';
+  } else if (rawStatus === 'archived') {
+    statusVal = 'Archived';
+  } else if (rawStatus === 'approved') {
+    statusVal = 'Approved';
+  }
+
   return {
     id: row.id || row.review_id,
     applicationId: row.application_id,
     customerId: row.customer_id,
-    customerName: row.customer_name || 'Valued Customer',
+    customerName: row.customer_name || row.author_name || 'Valued Customer',
     rating: Number(row.rating || 5),
-    comment: row.comment || '',
+    comment: row.comment || row.content || row.review_text || '',
     isPublic: Boolean(row.is_public ?? true),
-    status: row.status || 'Approved',
-    response: row.response,
-    respondedBy: row.responded_by,
-    respondedAt: row.responded_at,
-    createdAt: row.created_at || new Date().toISOString(),
+    status: statusVal,
+    response: row.response || row.admin_reply,
+    respondedBy: row.responded_by || row.replied_by,
+    respondedAt: row.responded_at || row.replied_at,
+    createdAt: row.created_at || row.created_date || new Date().toISOString(),
   };
 }
 
@@ -615,9 +636,9 @@ export const supabaseService = {
     let query = supabase.from('applications').select('*').order('created_at', { ascending: false });
 
     if (filters?.assignedAssociateId) {
-      query = query.eq('assigned_associate_id', filters.assignedAssociateId);
+      query = query.or(`associate_id.eq.${filters.assignedAssociateId},user_id.eq.${filters.assignedAssociateId}`);
     }
-    if (filters?.status) {
+    if (filters?.status && filters.status !== 'All') {
       query = query.eq('status', filters.status);
     }
     if (filters?.stage) {
@@ -633,7 +654,22 @@ export const supabaseService = {
       return [];
     }
 
-    return (data || []).map(mapRowToApplication);
+    let apps = (data || []).map(mapRowToApplication);
+
+    if (filters?.search && filters.search.trim()) {
+      const q = filters.search.trim().toLowerCase();
+      apps = apps.filter(
+        a =>
+          a.customerName.toLowerCase().includes(q) ||
+          a.customerPhone.toLowerCase().includes(q) ||
+          a.id.toLowerCase().includes(q) ||
+          (a.loanType && a.loanType.toLowerCase().includes(q)) ||
+          (a.city && a.city.toLowerCase().includes(q)) ||
+          (a.state && a.state.toLowerCase().includes(q))
+      );
+    }
+
+    return apps;
   },
 
   async getApplicationById(id: string): Promise<{
@@ -655,23 +691,44 @@ export const supabaseService = {
 
     const app = mapRowToApplication(appRow);
 
-    const [docsRes, stagesRes] = await Promise.all([
+    const [docsRes, stagesRes, appStagesRes] = await Promise.all([
       supabase.from('documents').select('*').eq('application_id', id).order('created_at', { ascending: false }),
       supabase.from('stage_updates').select('*').eq('application_id', id).order('created_at', { ascending: false }),
+      supabase.from('application_stages').select('*').eq('application_id', id).order('stage_number', { ascending: true }),
     ]);
+
+    // If public.application_stages table has records for this application, populate real database stages
+    if (appStagesRes.data && appStagesRes.data.length > 0) {
+      const realStages: StageInfo[] = appStagesRes.data.map((r: any) => {
+        const stageNum = Number(r.stage_number || 1);
+        const defaultName = LOAN_STAGES.find(s => s.number === stageNum)?.name || `Stage ${stageNum}`;
+        return {
+          number: stageNum,
+          name: r.name || defaultName,
+          status: (r.status || 'Pending') as StageStatus,
+          updatedAt: r.updated_at || new Date().toISOString(),
+          updatedBy: r.updated_by || 'Staff',
+          notes: r.remarks || r.description || undefined,
+        };
+      });
+      realStages.sort((a, b) => a.number - b.number);
+      if (realStages.length > 0) {
+        app.stages = realStages;
+      }
+    }
 
     const documents = (docsRes.data || []).map(mapRowToDocument);
     const stageUpdates: StageUpdateLog[] = (stagesRes.data || []).map((s: any) => ({
       id: s.id,
       applicationId: s.application_id,
       stageNumber: Number(s.stage_number),
-      stageName: s.stage_name,
+      stageName: s.stage_name || s.name,
       oldStatus: s.old_status,
       newStatus: s.new_status,
       updatedBy: s.updated_by,
       updatedByRole: s.updated_by_role || 'ADMIN',
       timestamp: s.timestamp || s.created_at,
-      internalNote: s.internal_note,
+      internalNote: s.internal_note || s.remarks,
     }));
 
     return { application: app, documents, stageUpdates };
@@ -692,30 +749,70 @@ export const supabaseService = {
       notes: s.number === 1 ? 'Application initiated and initial loan request captured.' : undefined,
     }));
 
-    const insertPayload = {
+    const cleanPhone = (p?: string | null) => (p ? String(p).replace(/\D/g, '').slice(-10) : '');
+    const finalPhone = (appData.customerPhone || appData.mobile || appData.phone || '').trim();
+    const finalEmail = (appData.customerEmail || appData.email || '').trim().toLowerCase();
+    const finalName = (appData.customerName || appData.fullName || 'Applicant').trim();
+    const phoneDigits = cleanPhone(finalPhone);
+
+    // Look up or create Customer record
+    let customerId: string | null = appData.customerId || null;
+    if (!customerId) {
+      try {
+        const { data: existingCusts } = await supabase
+          .from('customers')
+          .select('id, customer_id, mobile_number, email');
+
+        const matched = (existingCusts || []).find((c: any) => 
+          (phoneDigits && c.mobile_number && cleanPhone(c.mobile_number) === phoneDigits) ||
+          (finalEmail && c.email && c.email.toLowerCase() === finalEmail)
+        );
+
+        if (matched) {
+          customerId = matched.customer_id || matched.id;
+        } else {
+          // Generate customer record in Supabase
+          const newCustRow: any = {
+            full_name: finalName,
+            mobile_number: finalPhone,
+            email: finalEmail || null,
+            created_at: now,
+            updated_at: now,
+          };
+          const { data: createdCust } = await supabase
+            .from('customers')
+            .insert(newCustRow)
+            .select()
+            .single();
+
+          if (createdCust) {
+            customerId = createdCust.customer_id || createdCust.id;
+          }
+        }
+      } catch (custErr) {
+        console.warn('Customer lookup/create in Supabase notice:', custErr);
+      }
+    }
+
+    const insertPayload: any = {
       id: appId,
-      lead_id: appData.leadId || null,
-      customer_name: appData.customerName.trim(),
-      customer_phone: appData.customerPhone.trim(),
-      customer_email: appData.customerEmail ? appData.customerEmail.trim() : null,
+      customer_id: customerId || undefined,
+      full_name: finalName,
+      mobile_number: finalPhone,
+      email: finalEmail || null,
       city: appData.city || null,
       state: appData.state || null,
       loan_type: appData.loanType || 'Personal Loan',
-      requested_amount: Number(appData.requestedAmount || 0),
-      sanction_amount: 0,
-      disbursement_amount: 0,
-      assigned_associate_id: appData.assignedAssociateId || null,
-      assigned_associate_name: appData.assignedAssociateName || null,
+      required_loan_amount: Number(appData.requestedAmount || appData.requiredLoanAmount || appData.amount || 0),
+      associate_id: appData.assignedAssociateId || appData.associateId || null,
+      associate_name: appData.assignedAssociateName || appData.associateName || null,
+      user_id: currentUser?.id || null,
+      employment_type: appData.employmentType || 'Salaried',
       status: 'In Process',
       current_stage: 2,
-      current_stage_name: 'Application',
-      stages: JSON.stringify(stages),
       notes: appData.notes || null,
-      lender_partner: appData.lenderPartner || null,
       created_at: now,
-      created_date: now,
       updated_at: now,
-      updated_date: now,
     };
 
     const { data, error } = await supabase
@@ -724,16 +821,99 @@ export const supabaseService = {
       .select()
       .single();
 
-    if (error) throw new Error(`Failed to create application in Supabase: ${error.message}`);
+    if (error) {
+      console.warn('Supabase createApplication insert error:', error.message);
+      throw new Error(`Failed to create application in Supabase: ${error.message}`);
+    }
+
+    // Initialize all 12 stages in public.application_stages table
+    try {
+      const stagesRows = LOAN_STAGES.map(s => ({
+        id: `STG-${Date.now()}-${s.number}`,
+        application_id: appId,
+        stage_number: s.number,
+        name: s.name,
+        status: s.number === 1 ? 'Completed' : s.number === 2 ? 'In Progress' : 'Pending',
+        remarks: s.number === 1 ? 'Application initiated and initial loan request captured.' : null,
+        updated_by: currentUser?.name || 'Portal Staff',
+        updated_at: now,
+      }));
+      await supabase.from('application_stages').insert(stagesRows);
+    } catch (e) {
+      console.warn('application_stages initial insert notice:', e);
+    }
 
     await this.logActivity({
       action: 'APPLICATION_CREATED',
       entity: 'Application',
       entityId: appId,
-      details: `Created application for ${appData.customerName} (₹${appData.requestedAmount})`,
+      details: `Created application for ${appData.customerName || appData.fullName} (₹${appData.requestedAmount || appData.requiredLoanAmount})`,
     });
 
-    return mapRowToApplication(data);
+    const appResult = mapRowToApplication(data);
+    appResult.stages = stages;
+    return appResult;
+  },
+
+  async submitPublicApplication(payload: {
+    fullName: string;
+    mobile: string;
+    email?: string;
+    city?: string;
+    state?: string;
+    loanType: string;
+    requestedAmount: number;
+    employmentType?: string;
+    notes?: string;
+  }): Promise<{ success: boolean; applicationId: string; customerId?: string; message?: string }> {
+    const cleanPhone = (p?: string | null) => (p ? String(p).replace(/\D/g, '').slice(-10) : '');
+    const phoneDigits = cleanPhone(payload.mobile);
+    const emailClean = (payload.email || '').trim().toLowerCase();
+
+    // 1. Attempt PostgreSQL RPC submit_public_application (SECURITY DEFINER)
+    if (isSupabaseConfigured()) {
+      try {
+        const { data: rpcData, error: rpcError } = await supabase.rpc('submit_public_application', {
+          p_full_name: payload.fullName.trim(),
+          p_mobile: phoneDigits,
+          p_email: emailClean || null,
+          p_city: payload.city ? payload.city.trim() : null,
+          p_state: payload.state ? payload.state.trim() : null,
+          p_loan_type: payload.loanType || 'Personal Loan',
+          p_amount: Number(payload.requestedAmount) || 0,
+          p_employment_type: payload.employmentType || 'Salaried',
+          p_notes: payload.notes || 'Public website application submission',
+        });
+
+        if (!rpcError && rpcData) {
+          return {
+            success: true,
+            applicationId: rpcData.application_id || rpcData.applicationId || rpcData.id,
+            customerId: rpcData.customer_id || rpcData.customerId,
+            message: 'Application submitted successfully via secure public intake.',
+          };
+        }
+      } catch (rpcErr) {
+        console.warn('Supabase RPC submit_public_application notice:', rpcErr);
+      }
+    }
+
+    // 2. Fallback to server-side secure intake endpoint
+    const response = await fetch('/api/website/applications', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const result = await response.json();
+    if (!response.ok) {
+      throw new Error(result.error || 'Failed to submit application');
+    }
+    return {
+      success: true,
+      applicationId: result.applicationId || result.application?.id,
+      customerId: result.application?.customerId || result.customerId,
+      message: result.message || 'Loan application submitted successfully!',
+    };
   },
 
   async updateApplication(id: string, updates: Partial<Application>): Promise<Application> {
@@ -741,17 +921,16 @@ export const supabaseService = {
 
     const payload: any = {
       updated_at: new Date().toISOString(),
-      updated_date: new Date().toISOString(),
     };
-    if (updates.requestedAmount !== undefined) payload.requested_amount = Number(updates.requestedAmount);
-    if (updates.sanctionAmount !== undefined) payload.sanction_amount = Number(updates.sanctionAmount);
-    if (updates.disbursementAmount !== undefined) payload.disbursement_amount = Number(updates.disbursementAmount);
+    if (updates.requestedAmount !== undefined) payload.required_loan_amount = Number(updates.requestedAmount);
     if (updates.status) payload.status = updates.status;
     if (updates.currentStage) payload.current_stage = Number(updates.currentStage);
-    if (updates.currentStageName) payload.current_stage_name = updates.currentStageName;
-    if (updates.stages) payload.stages = JSON.stringify(updates.stages);
-    if (updates.lenderPartner !== undefined) payload.lender_partner = updates.lenderPartner;
+    if (updates.assignedAssociateId !== undefined) payload.associate_id = updates.assignedAssociateId;
+    if (updates.assignedAssociateName !== undefined) payload.associate_name = updates.assignedAssociateName;
     if (updates.notes !== undefined) payload.notes = updates.notes;
+    if ((updates as any).employmentType) payload.employment_type = (updates as any).employmentType;
+    if (updates.city !== undefined) payload.city = updates.city;
+    if (updates.state !== undefined) payload.state = updates.state;
 
     const { data, error } = await supabase
       .from('applications')
@@ -801,9 +980,7 @@ export const supabaseService = {
     if (stageNumber === 11 && newStatus === 'Completed') overallStatus = 'Disbursed';
 
     const updatedApp = await this.updateApplication(id, {
-      stages: application.stages,
       currentStage: nextStageNum,
-      currentStageName: nextStageName,
       status: overallStatus,
     });
 
@@ -825,6 +1002,39 @@ export const supabaseService = {
     } catch {
       // Ignore
     }
+
+    // Sync to public.application_stages table in Supabase
+    try {
+      const { error: updateStageErr } = await supabase
+        .from('application_stages')
+        .update({
+          status: newStatus,
+          remarks: internalNote || stage.notes || null,
+          updated_by: currentUser?.name || 'Staff',
+          updated_at: new Date().toISOString(),
+        })
+        .eq('application_id', id)
+        .eq('stage_number', stageNumber);
+
+      if (updateStageErr) {
+        // If not found to update, attempt insert
+        await supabase.from('application_stages').insert({
+          id: `STG-${Date.now()}-${stageNumber}`,
+          application_id: id,
+          stage_number: stageNumber,
+          name: stage.name,
+          status: newStatus,
+          remarks: internalNote || stage.notes || null,
+          updated_by: currentUser?.name || 'Staff',
+          updated_at: new Date().toISOString(),
+        });
+      }
+    } catch (e) {
+      console.warn('application_stages sync notice:', e);
+    }
+
+    updatedApp.stages = application.stages;
+    updatedApp.currentStageName = nextStageName;
 
     await this.logActivity({
       action: 'STAGE_UPDATED',
@@ -943,16 +1153,131 @@ export const supabaseService = {
   async getCustomers(filters?: { search?: string; limit?: number }): Promise<Customer[]> {
     if (!isSupabaseConfigured()) return [];
 
-    let query = supabase.from('customers').select('*').order('created_at', { ascending: false });
-    if (filters?.limit) query = query.limit(filters.limit);
+    try {
+      const [{ data: custRows, error: custErr }, { data: appRows, error: appErr }] = await Promise.all([
+        supabase.from('customers').select('*').order('created_at', { ascending: false }),
+        supabase.from('applications').select('*').order('created_at', { ascending: false }),
+      ]);
 
-    const { data, error } = await query;
-    if (error) {
-      console.warn('Supabase getCustomers error:', error.message);
+      if (custErr) {
+        console.warn('Supabase getCustomers fetch warning:', custErr.message);
+      }
+      if (appErr) {
+        console.warn('Supabase getApplications for customers warning:', appErr.message);
+      }
+
+      const cleanPhone = (p?: string | null) => (p ? String(p).replace(/\D/g, '').slice(-10) : '');
+      const customerMap = new Map<string, Customer>();
+
+      // 1. First map direct rows from public.customers
+      for (const row of custRows || []) {
+        const c = mapRowToCustomer(row);
+        customerMap.set(c.id, c);
+      }
+
+      // 2. Reconcile with every row from public.applications
+      for (const row of appRows || []) {
+        const appId = String(row.id || '');
+        const appName = row.full_name || row.customer_name || row.applicant_name || row.name || 'Applicant';
+        const appMobile = row.mobile_number || row.customer_phone || row.mobile || row.phone || '';
+        const appPhoneDigits = cleanPhone(appMobile);
+        const appEmail = (row.email || row.customer_email || '').toLowerCase().trim();
+        const appCity = row.city || undefined;
+        const appState = row.state || undefined;
+        const appLoanType = row.loan_type || 'Personal Loan';
+        const appAmount = Number(row.required_loan_amount || row.requested_amount || row.loan_amount || 0);
+        const currentStageNum = Number(row.current_stage || row.stage || 2);
+        const currentStageName = LOAN_STAGES.find(s => s.number === currentStageNum)?.name || 'Application';
+        const appStatus = row.status || 'In Process';
+        const appCreated = row.created_at || new Date().toISOString();
+        const appUpdated = row.updated_at || appCreated;
+        const assocId = row.associate_id || row.assigned_associate_id || null;
+        const assocName = row.associate_name || row.assigned_associate_name || null;
+        const partnerId = row.partner_id || row.assigned_partner_id || null;
+        const partnerName = row.partner_name || row.assigned_partner_name || null;
+
+        // Reconcile by customer_id or verified phone or email
+        let existingCust = Array.from(customerMap.values()).find(
+          c => (row.customer_id && c.id === row.customer_id) ||
+               (appPhoneDigits && cleanPhone(c.mobile) === appPhoneDigits) ||
+               (appEmail && c.email && c.email.toLowerCase() === appEmail)
+        );
+
+        if (!existingCust) {
+          const custId = row.customer_id || `CUST-${appId.replace(/^APP-/, '')}`;
+          existingCust = {
+            id: custId,
+            name: appName,
+            mobile: appMobile,
+            email: appEmail || undefined,
+            city: appCity,
+            state: appState,
+            employmentType: row.employment_type || 'Salaried',
+            assignedAssociateId: assocId,
+            assignedAssociateName: assocName,
+            assignedPartnerId: partnerId,
+            assignedPartnerName: partnerName,
+            totalApplicationsCount: 0,
+            totalDisbursedAmount: 0,
+            latestApplicationId: appId,
+            latestLoanType: appLoanType,
+            latestLoanAmount: appAmount,
+            latestStageNumber: currentStageNum,
+            latestStageName: currentStageName,
+            latestStatus: appStatus,
+            latestCreatedDate: appCreated,
+            createdAt: appCreated,
+            updatedAt: appUpdated,
+          };
+          customerMap.set(custId, existingCust);
+        }
+
+        // Increment count
+        existingCust.totalApplicationsCount = (existingCust.totalApplicationsCount || 0) + 1;
+        if (appStatus === 'Disbursed' && row.disbursement_amount) {
+          existingCust.totalDisbursedAmount = (existingCust.totalDisbursedAmount || 0) + Number(row.disbursement_amount);
+        }
+
+        // Track latest application
+        if (!existingCust.latestCreatedDate || new Date(appCreated).getTime() >= new Date(existingCust.latestCreatedDate).getTime()) {
+          existingCust.latestApplicationId = appId;
+          existingCust.latestLoanType = appLoanType;
+          existingCust.latestLoanAmount = appAmount;
+          existingCust.latestStageNumber = currentStageNum;
+          existingCust.latestStageName = currentStageName;
+          existingCust.latestStatus = appStatus;
+          existingCust.latestCreatedDate = appCreated;
+          if (assocId && !existingCust.assignedAssociateId) existingCust.assignedAssociateId = assocId;
+          if (assocName && !existingCust.assignedAssociateName) existingCust.assignedAssociateName = assocName;
+          if (partnerId && !existingCust.assignedPartnerId) existingCust.assignedPartnerId = partnerId;
+          if (partnerName && !existingCust.assignedPartnerName) existingCust.assignedPartnerName = partnerName;
+          if (appCity && !existingCust.city) existingCust.city = appCity;
+          if (appState && !existingCust.state) existingCust.state = appState;
+        }
+      }
+
+      let customers = Array.from(customerMap.values());
+
+      if (filters?.search) {
+        const q = filters.search.toLowerCase();
+        customers = customers.filter(
+          c => c.name.toLowerCase().includes(q) ||
+               c.mobile.includes(q) ||
+               (c.email && c.email.toLowerCase().includes(q)) ||
+               c.id.toLowerCase().includes(q) ||
+               (c.city && c.city.toLowerCase().includes(q))
+        );
+      }
+
+      if (filters?.limit) {
+        customers = customers.slice(0, filters.limit);
+      }
+
+      return customers;
+    } catch (e) {
+      console.warn('Supabase getCustomers error:', e);
       return [];
     }
-
-    return (data || []).map(mapRowToCustomer);
   },
 
   async getCustomerById(id: string): Promise<Customer | null> {
@@ -963,17 +1288,41 @@ export const supabaseService = {
   },
 
   // -------------------------------------------------------------
-  // 7. REVIEWS & RATINGS (SHARED WITH WEBSITE)
+  // 7. REVIEWS & RATINGS (SHARED WITH WEBSITE - public.reviews)
   // -------------------------------------------------------------
-  async getReviews(): Promise<CustomerReview[]> {
+  async getReviews(statusFilter?: string): Promise<CustomerReview[]> {
     if (!isSupabaseConfigured()) return [];
-    const { data, error } = await supabase
+    let query = supabase
       .from('reviews')
       .select('*')
       .order('created_at', { ascending: false });
 
-    if (error) return [];
+    if (statusFilter && statusFilter !== 'ALL') {
+      query = query.ilike('status', statusFilter);
+    }
+
+    const { data, error } = await query;
+    if (error) {
+      console.warn('Supabase getReviews error:', error.message);
+      return [];
+    }
     return (data || []).map(mapRowToReview);
+  },
+
+  async updateReviewStatus(id: string, status: CustomerReview['status']): Promise<CustomerReview> {
+    if (!isSupabaseConfigured()) throw new Error('Supabase not configured.');
+
+    const { data, error } = await supabase
+      .from('reviews')
+      .update({
+        status,
+      })
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) throw new Error(`Failed to update review status: ${error.message}`);
+    return mapRowToReview(data);
   },
 
   async respondToReview(id: string, response: string, responderName: string): Promise<CustomerReview> {
@@ -991,6 +1340,39 @@ export const supabaseService = {
       .single();
 
     if (error) throw new Error(`Failed to update review: ${error.message}`);
+    return mapRowToReview(data);
+  },
+
+  async createReview(reviewData: {
+    customerName: string;
+    rating: number;
+    comment: string;
+    applicationId?: string;
+    customerId?: string;
+    status?: CustomerReview['status'];
+  }): Promise<CustomerReview> {
+    if (!isSupabaseConfigured()) throw new Error('Supabase not configured.');
+
+    const id = `REV-${Date.now()}`;
+    const insertPayload = {
+      id,
+      customer_name: reviewData.customerName.trim(),
+      rating: reviewData.rating,
+      comment: reviewData.comment.trim(),
+      application_id: reviewData.applicationId || null,
+      customer_id: reviewData.customerId || null,
+      status: reviewData.status || 'Pending',
+      is_public: true,
+      created_at: new Date().toISOString(),
+    };
+
+    const { data, error } = await supabase
+      .from('reviews')
+      .insert(insertPayload)
+      .select()
+      .single();
+
+    if (error) throw new Error(`Failed to create review in Supabase: ${error.message}`);
     return mapRowToReview(data);
   },
 

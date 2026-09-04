@@ -2,13 +2,17 @@
  * Capitabee Financial Services CRM - API Routes
  */
 
+import 'dotenv/config';
 import { Router, Request, Response, NextFunction } from 'express';
 import crypto from 'node:crypto';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { db, hashPassword, verifyPassword, StoredUser, SessionData } from './db';
 import {
   User,
+  UserRole,
   Lead,
   Application,
+  Customer,
   FollowUp,
   LeadNote,
   StageInfo,
@@ -17,6 +21,8 @@ import {
   CibilCheckRecord,
   NotificationLog,
   NotificationStatus,
+  CustomerReview,
+  AssociateTarget,
 } from '../src/types';
 import { LOAN_STAGES, BRAND } from '../src/config/brand';
 import {
@@ -26,6 +32,118 @@ import {
 } from '../src/config/whatsappTemplates';
 import { sendWhatsAppNotification, isWhatsAppConfigured } from './whatsapp';
 
+const SUPABASE_URL = (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || 'https://fvpnergqltezjbgbtwtv.supabase.co').trim();
+const SUPABASE_SERVICE_ROLE_KEY = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim();
+
+let serverSupabase: SupabaseClient | null = null;
+export function getServerSupabase(): SupabaseClient | null {
+  if (!SUPABASE_SERVICE_ROLE_KEY || SUPABASE_SERVICE_ROLE_KEY.length < 20) {
+    return null;
+  }
+  if (!serverSupabase) {
+    serverSupabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+      },
+    });
+  }
+  return serverSupabase;
+}
+
+export function isUsingServiceRole(): boolean {
+  return Boolean(SUPABASE_SERVICE_ROLE_KEY && SUPABASE_SERVICE_ROLE_KEY.length > 20);
+}
+
+const cleanPhone = (p?: string | null) => (p ? String(p).replace(/\D/g, '').slice(-10) : '');
+
+// Reconciles all applications with customers to ensure customer_id is always properly populated
+export function reconcileDatabaseCustomers() {
+  const data = db.getData();
+  data.customers = data.customers || [];
+  data.applications = data.applications || [];
+
+  for (const app of data.applications) {
+    const appPhone = cleanPhone(app.customerPhone);
+    const appEmail = (app.customerEmail || '').toLowerCase().trim();
+
+    // Check if app already has a valid customerId linking to an existing customer
+    let linkedCust = app.customerId ? data.customers.find(c => c.id === app.customerId) : undefined;
+
+    if (!linkedCust) {
+      // Find matching customer by normalized phone or email
+      linkedCust = data.customers.find(c => 
+        (appPhone && c.mobile && cleanPhone(c.mobile) === appPhone) ||
+        (appEmail && c.email && c.email.toLowerCase() === appEmail)
+      );
+
+      if (linkedCust) {
+        app.customerId = linkedCust.id;
+      } else {
+        // Create exactly one customer for this application
+        const newCustId = db.nextCustomerId();
+        linkedCust = {
+          id: newCustId,
+          name: app.customerName || 'Customer',
+          mobile: app.customerPhone || '',
+          email: app.customerEmail || undefined,
+          city: app.city || undefined,
+          state: app.state || undefined,
+          employmentType: 'Salaried',
+          assignedAssociateId: app.assignedAssociateId || null,
+          assignedAssociateName: app.assignedAssociateName || null,
+          assignedPartnerId: app.assignedPartnerId || undefined,
+          assignedPartnerName: app.assignedPartnerName || undefined,
+          totalApplicationsCount: 0,
+          totalDisbursedAmount: 0,
+          createdAt: app.createdDate || new Date().toISOString(),
+          updatedAt: app.updatedDate || new Date().toISOString(),
+        };
+        data.customers.push(linkedCust);
+        app.customerId = newCustId;
+      }
+    }
+  }
+
+  // Recalculate customer metrics from applications
+  for (const cust of data.customers) {
+    const custPhone = cleanPhone(cust.mobile);
+    const custEmail = (cust.email || '').toLowerCase().trim();
+
+    const custApps = data.applications.filter(a => 
+      a.customerId === cust.id ||
+      (custPhone && a.customerPhone && cleanPhone(a.customerPhone) === custPhone) ||
+      (custEmail && a.customerEmail && (a.customerEmail || '').toLowerCase().trim() === custEmail)
+    );
+
+    cust.totalApplicationsCount = custApps.length;
+    cust.totalDisbursedAmount = custApps
+      .filter(a => a.status === 'Disbursed')
+      .reduce((sum, a) => sum + (Number(a.disbursementAmount) || Number(a.sanctionAmount) || 0), 0);
+
+    if (custApps.length > 0) {
+      const sorted = [...custApps].sort((a, b) => new Date(b.createdDate).getTime() - new Date(a.createdDate).getTime());
+      const latest = sorted[0];
+      cust.latestApplicationId = latest.id;
+      cust.latestLoanType = latest.loanType;
+      cust.latestLoanAmount = latest.requestedAmount || latest.sanctionAmount;
+      cust.latestStageNumber = Number(latest.currentStage || (latest as any).currentStageNumber || 2);
+      cust.latestStageName = latest.currentStageName || 'Application';
+      cust.latestStatus = latest.status || 'In Process';
+      cust.latestCreatedDate = latest.createdDate;
+      if (latest.city && !cust.city) cust.city = latest.city;
+      if (latest.state && !cust.state) cust.state = latest.state;
+    }
+  }
+}
+
+// Run initial reconciliation
+try {
+  reconcileDatabaseCustomers();
+} catch (e) {
+  console.warn('Initial customer reconciliation notice:', e);
+}
+
 export const apiRouter = Router();
 
 // Middleware: Extract Authenticated User
@@ -34,7 +152,7 @@ export interface AuthenticatedRequest extends Request {
   session?: SessionData;
 }
 
-export function authMiddleware(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+export async function authMiddleware(req: AuthenticatedRequest, res: Response, next: NextFunction) {
   const authHeader = req.headers.authorization || (req.headers['x-auth-token'] as string);
   if (!authHeader) {
     return res.status(401).json({ error: 'Authentication required. Please log in.' });
@@ -42,7 +160,58 @@ export function authMiddleware(req: AuthenticatedRequest, res: Response, next: N
 
   const token = authHeader.startsWith('Bearer ') ? authHeader.substring(7) : authHeader;
   const data = db.getData();
-  const session = data.sessions.find(s => s.token === token);
+  let session = data.sessions.find(s => s.token === token);
+
+  // If session not found in local memory, check if this is a valid Supabase Auth token
+  if (!session) {
+    try {
+      const sb = getServerSupabase();
+      if (sb) {
+        const { data: sbAuthData, error: sbAuthErr } = await sb.auth.getUser(token);
+        if (!sbAuthErr && sbAuthData?.user) {
+          const sbEmail = sbAuthData.user.email?.toLowerCase();
+          let matchedUser = data.users.find(u => u.email.toLowerCase() === sbEmail || u.id === sbAuthData.user.id);
+          if (!matchedUser && sbEmail) {
+            // Check profiles table or create basic user
+            const { data: prof } = await sb.from('profiles').select('*').eq('id', sbAuthData.user.id).single();
+            const now = new Date().toISOString();
+            matchedUser = {
+              id: sbAuthData.user.id,
+              name: prof?.full_name || sbEmail.split('@')[0],
+              email: sbEmail,
+              mobile: prof?.mobile || '',
+              role: (prof?.role as UserRole) || 'ADMIN',
+              department: prof?.department || 'Operations',
+              designation: prof?.designation || 'Staff',
+              status: 'Active',
+              onlineStatus: 'Online',
+              createdAt: now,
+              updatedAt: now,
+              passwordHash: '',
+              salt: '',
+            };
+            data.users.push(matchedUser);
+          }
+
+          if (matchedUser && matchedUser.status === 'Active') {
+            const now = new Date();
+            const expiresAt = new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString();
+            session = {
+              token,
+              userId: matchedUser.id,
+              role: matchedUser.role,
+              createdAt: now.toISOString(),
+              expiresAt,
+            };
+            data.sessions.push(session);
+            db.saveDatabase();
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Supabase token verification notice:', e);
+    }
+  }
 
   if (!session) {
     return res.status(401).json({ error: 'Session invalid or expired. Please log in again.' });
@@ -55,7 +224,7 @@ export function authMiddleware(req: AuthenticatedRequest, res: Response, next: N
     return res.status(401).json({ error: 'Session expired. Please log in again.' });
   }
 
-  const user = data.users.find(u => u.id === session.userId);
+  const user = data.users.find(u => u.id === session!.userId);
   if (!user || user.status !== 'Active') {
     return res.status(403).json({ error: 'User account is inactive or disabled.' });
   }
@@ -82,31 +251,46 @@ function sanitizeUser(user: StoredUser): User {
 // -------------------------------------------------------------
 
 apiRouter.post('/auth/login', (req: Request, res: Response) => {
-  const { email, password } = req.body;
-  if (!email || !password) {
-    return res.status(400).json({ error: 'Email and password are required.' });
+  const { email, identifier, password } = req.body;
+  const loginId = String(email || identifier || '').trim();
+  if (!loginId || !password) {
+    return res.status(400).json({ error: 'Email/ID and password are required.' });
   }
 
   const data = db.getData();
-  const normalizedEmail = String(email).trim().toLowerCase();
-  const user = data.users.find(u => u.email.toLowerCase() === normalizedEmail);
+  const normalized = loginId.toLowerCase();
+  const user = data.users.find(
+    u =>
+      u.email.toLowerCase() === normalized ||
+      u.id.toLowerCase() === normalized ||
+      (u.employeeId && u.employeeId.toLowerCase() === normalized) ||
+      (u.partnerId && u.partnerId.toLowerCase() === normalized) ||
+      u.mobile.replace(/\D/g, '') === loginId.replace(/\D/g, '')
+  );
 
   if (!user) {
-    // Check if any associates exist to provide the exact requested error message
-    const associateCount = data.users.filter(u => u.role === 'ASSOCIATE').length;
-    if (associateCount === 0 && normalizedEmail !== BRAND.initialAdminEmail.toLowerCase()) {
-      return res.status(400).json({ error: 'No Associate accounts have been created yet. Please contact the Administrator.' });
+    // Check if any non-admin accounts exist
+    const nonAdminCount = data.users.filter(u => u.role !== 'ADMIN').length;
+    if (nonAdminCount === 0 && normalized !== BRAND.initialAdminEmail.toLowerCase()) {
+      return res.status(400).json({ error: 'No user accounts have been created yet. Please contact the Administrator.' });
     }
-    return res.status(401).json({ error: 'Invalid credentials. Please verify your email and password.' });
+    return res.status(401).json({ error: 'Invalid credentials. Please verify your email/ID and password.' });
   }
 
   if (user.status !== 'Active') {
     return res.status(403).json({ error: `Account is currently ${user.status}. Please contact Administrator.` });
   }
 
+  // Security: Customer role is strictly barred from the Internal CRM Portal
+  if (user.role === 'CUSTOMER') {
+    return res.status(403).json({
+      error: 'Access Denied: Customer accounts cannot log in to the Internal CRM Portal. Customer accounts can access the 12-Stage Loan Tracker directly from the main Capitabee website.',
+    });
+  }
+
   const isValid = verifyPassword(password, user.passwordHash, user.salt);
   if (!isValid) {
-    return res.status(401).json({ error: 'Invalid credentials. Please verify your email and password.' });
+    return res.status(401).json({ error: 'Invalid credentials. Please verify your email/ID and password.' });
   }
 
   // Create session
@@ -163,6 +347,11 @@ apiRouter.post('/auth/logout', authMiddleware, (req: AuthenticatedRequest, res: 
 });
 
 apiRouter.get('/auth/me', authMiddleware, (req: AuthenticatedRequest, res: Response) => {
+  if (req.user?.role === 'CUSTOMER') {
+    return res.status(403).json({
+      error: 'Access Denied: Customer accounts cannot access the Internal CRM Portal. Please access the Customer Portal from the main website.',
+    });
+  }
   return res.json({ user: sanitizeUser(req.user!) });
 });
 
@@ -198,10 +387,10 @@ apiRouter.post('/auth/change-password', authMiddleware, (req: AuthenticatedReque
 });
 
 // -------------------------------------------------------------
-// 2. ASSOCIATE MANAGEMENT (ADMIN ONLY)
+// 2. ASSOCIATE MANAGEMENT
 // -------------------------------------------------------------
 
-apiRouter.get('/associates', authMiddleware, requireAdmin, (req: AuthenticatedRequest, res: Response) => {
+apiRouter.get('/associates', authMiddleware, (req: AuthenticatedRequest, res: Response) => {
   const data = db.getData();
   const associates = data.users
     .filter(u => u.role === 'ASSOCIATE')
@@ -379,6 +568,317 @@ apiRouter.post('/associates/:id/reset-password', authMiddleware, requireAdmin, (
   db.saveDatabase();
 
   return res.json({ success: true, message: `Password for Associate ${id} reset successfully.` });
+});
+
+// -------------------------------------------------------------
+// 2.1 NEXT CB-ID GENERATOR (ATOMIC & SEQUENTIAL PREVIEW)
+// -------------------------------------------------------------
+apiRouter.get('/next-cb-id', authMiddleware, (req: AuthenticatedRequest, res: Response) => {
+  const data = db.getData();
+  let highestNum = 999;
+  for (const u of data.users) {
+    const match = u.id?.match(/^CB-(\d+)$/i) || u.employeeId?.match(/^CB-(\d+)$/i);
+    if (match) {
+      const n = parseInt(match[1], 10);
+      if (!isNaN(n) && n > highestNum) {
+        highestNum = n;
+      }
+    }
+  }
+  if (data.counters && data.counters.associateSeq > highestNum) {
+    highestNum = data.counters.associateSeq;
+  }
+  const nextId = `CB-${highestNum + 1}`;
+  return res.json({ nextId });
+});
+
+// -------------------------------------------------------------
+// 2.2 PARTNERS MANAGEMENT & PARTNER WORKSPACE
+// -------------------------------------------------------------
+apiRouter.get('/partners', authMiddleware, (req: AuthenticatedRequest, res: Response) => {
+  const data = db.getData();
+  const user = req.user!;
+
+  let partnerUsers = data.users.filter(u => u.role === 'PARTNER');
+  if (user.role === 'PARTNER') {
+    partnerUsers = partnerUsers.filter(u => u.id === user.id);
+  }
+
+  const partners = partnerUsers.map(u => {
+    const sanitized = sanitizeUser(u);
+    const partnerCustomers = (data.customers || []).filter(c => c.assignedPartnerId === u.id || c.createdById === u.id);
+    const partnerApps = (data.applications || []).filter(a => a.assignedPartnerId === u.id || a.createdById === u.id);
+    const partnerLeads = (data.leads || []).filter(l => l.assignedPartnerId === u.id || l.createdById === u.id);
+    const inProgressApps = partnerApps.filter(a => !['Sanctioned', 'Disbursed', 'Rejected', 'Closed'].includes(a.status));
+    const sanctionedApps = partnerApps.filter(a => a.status === 'Sanctioned' || a.status === 'Disbursed');
+    const disbursedApps = partnerApps.filter(a => a.status === 'Disbursed');
+    const disbursedAmount = disbursedApps.reduce((acc, a) => acc + (a.disbursementAmount || 0), 0);
+    const totalLoanValue = partnerApps.reduce((acc, a) => acc + (a.requestedAmount || 0), 0);
+
+    const target = u.target || 10000000;
+    const achievementPct = target > 0 ? Math.round((disbursedAmount / target) * 100) : 0;
+    const conversionRate = partnerLeads.length > 0 ? Math.round((disbursedApps.length / partnerLeads.length) * 100) : 0;
+
+    return {
+      ...sanitized,
+      stats: {
+        totalCustomers: partnerCustomers.length,
+        totalLeads: partnerLeads.length,
+        applications: partnerApps.length,
+        inProgress: inProgressApps.length,
+        sanctions: sanctionedApps.length,
+        disbursements: disbursedApps.length,
+        totalLoanValue,
+        disbursedAmount,
+        target,
+        achievementPct,
+        conversionRate,
+      },
+    };
+  });
+
+  return res.json({ partners });
+});
+
+apiRouter.post('/partners', authMiddleware, requireAdmin, (req: AuthenticatedRequest, res: Response) => {
+  const {
+    name,
+    mobile,
+    email,
+    customId,
+    password,
+    confirmPassword,
+    department = 'Channel Partnerships',
+    designation = 'Senior Lending Partner',
+    status = 'Active',
+    target = 10000000,
+    targetCustomers = 20,
+    joiningDate = new Date().toISOString().split('T')[0],
+  } = req.body;
+
+  if (!name || !mobile || !email || !password) {
+    return res.status(400).json({ error: 'Name, mobile, email, and password are required.' });
+  }
+
+  if (confirmPassword !== undefined && password !== confirmPassword) {
+    return res.status(400).json({ error: 'Password and confirm password do not match.' });
+  }
+
+  if (password.length < 6) {
+    return res.status(400).json({ error: 'Password must be at least 6 characters.' });
+  }
+
+  const data = db.getData();
+  const normalizedEmail = String(email).trim().toLowerCase();
+  const emailExists = data.users.some(u => u.email.toLowerCase() === normalizedEmail);
+  if (emailExists) {
+    return res.status(400).json({ error: 'An account with this email already exists.' });
+  }
+
+  let partnerId: string;
+  try {
+    partnerId = db.nextPartnerId(customId);
+  } catch (err: any) {
+    return res.status(400).json({ error: err.message });
+  }
+
+  const { hash, salt } = hashPassword(password);
+  const now = new Date().toISOString();
+
+  const newPartner: StoredUser = {
+    id: partnerId,
+    name: name.trim(),
+    email: normalizedEmail,
+    mobile: mobile.trim(),
+    role: 'PARTNER',
+    partnerId,
+    employeeId: partnerId,
+    department,
+    designation,
+    status: status || 'Active',
+    onlineStatus: 'Offline',
+    target: Number(target) || 10000000,
+    targetCustomers: Number(targetCustomers) || 20,
+    joiningDate,
+    createdAt: now,
+    updatedAt: now,
+    passwordHash: hash,
+    salt,
+  };
+
+  data.users.push(newPartner);
+  db.logAudit(
+    { id: req.user!.id, name: req.user!.name, role: req.user!.role },
+    'PARTNER_CREATED',
+    'Partner',
+    partnerId,
+    `Admin created Partner ${partnerId} (${name}).`
+  );
+  db.saveDatabase();
+
+  return res.status(201).json({
+    success: true,
+    partner: sanitizeUser(newPartner),
+    message: `Partner ${partnerId} created successfully.`,
+  });
+});
+
+apiRouter.patch('/partners/:id', authMiddleware, requireAdmin, (req: AuthenticatedRequest, res: Response) => {
+  const { id } = req.params;
+  const { name, mobile, department, designation, status, target, targetCustomers } = req.body;
+  const data = db.getData();
+  const partner = data.users.find(u => u.id === id && u.role === 'PARTNER');
+
+  if (!partner) {
+    return res.status(404).json({ error: 'Partner not found.' });
+  }
+
+  if (name) partner.name = name;
+  if (mobile) partner.mobile = mobile;
+  if (department) partner.department = department;
+  if (designation) partner.designation = designation;
+  if (status) partner.status = status;
+  if (target !== undefined) partner.target = Number(target);
+  if (targetCustomers !== undefined) partner.targetCustomers = Number(targetCustomers);
+  partner.updatedAt = new Date().toISOString();
+
+  db.logAudit(
+    { id: req.user!.id, name: req.user!.name, role: req.user!.role },
+    'PARTNER_UPDATED',
+    'Partner',
+    id,
+    `Admin updated Partner ${id} details/status.`
+  );
+  db.saveDatabase();
+
+  return res.json({ success: true, partner: sanitizeUser(partner) });
+});
+
+apiRouter.post('/partners/:id/reset-password', authMiddleware, requireAdmin, (req: AuthenticatedRequest, res: Response) => {
+  const { id } = req.params;
+  const { newPassword } = req.body;
+  if (!newPassword || newPassword.length < 6) {
+    return res.status(400).json({ error: 'New password must be at least 6 characters.' });
+  }
+
+  const data = db.getData();
+  const partner = data.users.find(u => u.id === id && u.role === 'PARTNER');
+  if (!partner) {
+    return res.status(404).json({ error: 'Partner not found.' });
+  }
+
+  const { hash, salt } = hashPassword(newPassword);
+  partner.passwordHash = hash;
+  partner.salt = salt;
+  partner.updatedAt = new Date().toISOString();
+
+  db.logAudit(
+    { id: req.user!.id, name: req.user!.name, role: req.user!.role },
+    'PARTNER_PASSWORD_RESET',
+    'Partner',
+    id,
+    `Admin reset password for Partner ${id}.`
+  );
+  db.saveDatabase();
+
+  return res.json({ success: true, message: `Password for Partner ${id} reset successfully.` });
+});
+
+apiRouter.get('/partner/stats', authMiddleware, (req: AuthenticatedRequest, res: Response) => {
+  const data = db.getData();
+  const user = req.user!;
+  const partnerId = user.id;
+
+  const partnerCustomers = (data.customers || []).filter(c => c.assignedPartnerId === partnerId || c.createdById === partnerId);
+  const partnerApps = (data.applications || []).filter(a => a.assignedPartnerId === partnerId || a.createdById === partnerId);
+  const partnerLeads = (data.leads || []).filter(l => l.assignedPartnerId === partnerId || l.createdById === partnerId);
+
+  const inProgressApps = partnerApps.filter(a => !['Sanctioned', 'Disbursed', 'Rejected', 'Closed'].includes(a.status));
+  const sanctionedApps = partnerApps.filter(a => a.status === 'Sanctioned' || a.status === 'Disbursed');
+  const disbursedApps = partnerApps.filter(a => a.status === 'Disbursed');
+  const disbursedAmount = disbursedApps.reduce((acc, a) => acc + (a.disbursementAmount || 0), 0);
+  const totalLoanValue = partnerApps.reduce((acc, a) => acc + (a.requestedAmount || 0), 0);
+
+  const target = user.target || 10000000;
+  const targetCustomers = user.targetCustomers || 20;
+  const achievementPct = target > 0 ? Math.round((disbursedAmount / target) * 100) : 0;
+  const customerPct = targetCustomers > 0 ? Math.round((partnerCustomers.length / targetCustomers) * 100) : 0;
+
+  return res.json({
+    stats: {
+      totalCustomers: partnerCustomers.length,
+      totalLeads: partnerLeads.length,
+      totalApplications: partnerApps.length,
+      inProgressCount: inProgressApps.length,
+      sanctionedCount: sanctionedApps.length,
+      disbursedCount: disbursedApps.length,
+      totalLoanValue,
+      disbursedAmount,
+      target,
+      targetCustomers,
+      achievementPct,
+      customerPct,
+      recentApplications: partnerApps.slice(0, 5),
+    },
+  });
+});
+
+// -------------------------------------------------------------
+// 2.3 EMPLOYEES MANAGEMENT
+// -------------------------------------------------------------
+apiRouter.get('/employees', authMiddleware, (req: AuthenticatedRequest, res: Response) => {
+  const data = db.getData();
+  const user = req.user!;
+  let employees = data.users.filter(u => u.role === 'EMPLOYEE');
+  if (user.role === 'EMPLOYEE') {
+    employees = employees.filter(u => u.id === user.id);
+  }
+  return res.json({ employees: employees.map(sanitizeUser) });
+});
+
+apiRouter.post('/employees', authMiddleware, requireAdmin, (req: AuthenticatedRequest, res: Response) => {
+  const { name, mobile, email, password, department = 'Operations', designation = 'Credit Operations Officer' } = req.body;
+  if (!name || !mobile || !email || !password) {
+    return res.status(400).json({ error: 'Name, mobile, email, and password are required.' });
+  }
+  const data = db.getData();
+  const normalizedEmail = String(email).trim().toLowerCase();
+  if (data.users.some(u => u.email.toLowerCase() === normalizedEmail)) {
+    return res.status(400).json({ error: 'An account with this email already exists.' });
+  }
+
+  const employeeId = db.nextCbId();
+  const { hash, salt } = hashPassword(password);
+  const now = new Date().toISOString();
+
+  const newEmp: StoredUser = {
+    id: employeeId,
+    name: name.trim(),
+    email: normalizedEmail,
+    mobile: mobile.trim(),
+    role: 'EMPLOYEE',
+    employeeId,
+    department,
+    designation,
+    status: 'Active',
+    onlineStatus: 'Offline',
+    createdAt: now,
+    updatedAt: now,
+    passwordHash: hash,
+    salt,
+  };
+
+  data.users.push(newEmp);
+  db.logAudit(
+    { id: req.user!.id, name: req.user!.name, role: req.user!.role },
+    'EMPLOYEE_CREATED',
+    'Employee',
+    employeeId,
+    `Admin created Employee ${employeeId} (${name}).`
+  );
+  db.saveDatabase();
+
+  return res.status(201).json({ success: true, employee: sanitizeUser(newEmp) });
 });
 
 // -------------------------------------------------------------
@@ -823,30 +1323,104 @@ apiRouter.post('/leads/:id/notes', authMiddleware, (req: AuthenticatedRequest, r
 // 4. APPLICATIONS & 12-STAGE LOAN PROCESS
 // -------------------------------------------------------------
 
-apiRouter.get('/applications', authMiddleware, (req: AuthenticatedRequest, res: Response) => {
-  const data = db.getData();
+apiRouter.get('/applications', authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
   const user = req.user!;
+  const sb = getServerSupabase();
 
-  let applications = data.applications;
+  if (!sb) {
+    return res.status(503).json({
+      error: 'SUPABASE_SERVICE_ROLE_KEY is missing from the server runtime environment.',
+      applications: [],
+    });
+  }
+
+  let query = sb.from('applications').select('*').order('created_at', { ascending: false });
   if (user.role === 'ASSOCIATE') {
-    applications = applications.filter(a => a.assignedAssociateId === user.id);
+    const associateKey = user.employeeId || user.id;
+    query = query.or(`associate_id.eq.${associateKey},user_id.eq.${user.id}`);
+  }
+
+  const { data: sbApps, error } = await query;
+  if (error) {
+    console.error('Supabase /api/applications query error:', error);
+    return res.status(500).json({
+      error: `Supabase query failed: [${error.code}] ${error.message}`,
+      code: error.code,
+      message: error.message,
+      details: error.details,
+      hint: error.hint,
+      applications: [],
+    });
+  }
+
+  const applications: Application[] = [];
+  if (sbApps && sbApps.length > 0) {
+    for (const row of sbApps) {
+      const currentStageNum = Number(row.current_stage || row.stage || 2);
+      const defaultStages: StageInfo[] = LOAN_STAGES.map(s => ({
+        number: s.number,
+        name: s.name,
+        status: s.number < currentStageNum ? 'Completed' : s.number === currentStageNum ? 'In Progress' : 'Pending',
+        updatedAt: row.updated_at || row.created_at || new Date().toISOString(),
+      }));
+
+      const mapped: Application = {
+        id: String(row.id || row.application_id || ''),
+        customerId: row.customer_id || undefined,
+        leadId: row.lead_id || undefined,
+        customerName: row.full_name || row.customer_name || row.applicant_name || row.name || 'Applicant',
+        customerPhone: row.mobile_number || row.customer_phone || row.mobile || row.phone || '',
+        customerEmail: row.email || row.customer_email || undefined,
+        city: row.city || undefined,
+        state: row.state || undefined,
+        loanType: row.loan_type || row.loanType || 'Personal Loan',
+        requestedAmount: Number(row.required_loan_amount || row.requested_amount || row.loan_amount || row.amount || 0),
+        sanctionAmount: Number(row.sanction_amount || row.sanctioned_amount || 0),
+        disbursementAmount: Number(row.disbursement_amount || row.disbursed_amount || 0),
+        lenderPartner: row.lender_partner || row.lending_partner || undefined,
+        assignedAssociateId: row.associate_id || row.assigned_associate_id || row.user_id || null,
+        assignedAssociateName: row.associate_name || row.assigned_associate_name || null,
+        assignedPartnerId: row.partner_id || row.assigned_partner_id || undefined,
+        assignedPartnerName: row.partner_name || row.assigned_partner_name || undefined,
+        status: row.status || 'In Process',
+        currentStage: currentStageNum,
+        currentStageName: LOAN_STAGES.find(s => s.number === currentStageNum)?.name || 'Application',
+        stages: Array.isArray(row.stages) ? row.stages : defaultStages,
+        createdDate: row.created_at || row.created_date || new Date().toISOString(),
+        updatedDate: row.updated_at || row.updated_date || new Date().toISOString(),
+        notes: row.notes || undefined,
+      };
+      applications.push(mapped);
+    }
+  }
+
+  let filtered = applications;
+
+  if (user.role === 'ASSOCIATE') {
+    filtered = filtered.filter(
+      a =>
+        a.assignedAssociateId === user.id ||
+        a.assignedAssociateId === user.employeeId ||
+        (user.name && a.assignedAssociateName?.toLowerCase() === user.name.toLowerCase())
+    );
   }
 
   const { search, status, loanType, stage } = req.query;
   if (search) {
     const q = String(search).toLowerCase();
-    applications = applications.filter(
+    filtered = filtered.filter(
       a =>
         a.customerName.toLowerCase().includes(q) ||
-        a.customerPhone.includes(q) ||
-        a.id.toLowerCase().includes(q)
+        a.customerPhone.toLowerCase().includes(q) ||
+        a.id.toLowerCase().includes(q) ||
+        (a.city && a.city.toLowerCase().includes(q))
     );
   }
-  if (status) applications = applications.filter(a => a.status === status);
-  if (loanType) applications = applications.filter(a => a.loanType === loanType);
-  if (stage) applications = applications.filter(a => a.currentStage === Number(stage));
+  if (status && status !== 'All') filtered = filtered.filter(a => a.status === status);
+  if (loanType && loanType !== 'All') filtered = filtered.filter(a => a.loanType === loanType);
+  if (stage) filtered = filtered.filter(a => a.currentStage === Number(stage));
 
-  return res.json({ applications });
+  return res.json({ applications: filtered });
 });
 
 apiRouter.post('/applications', authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
@@ -875,11 +1449,14 @@ apiRouter.post('/applications', authMiddleware, async (req: AuthenticatedRequest
   let assocName: string | null = null;
 
   if (user.role === 'ASSOCIATE') {
-    assocId = user.id;
+    assocId = user.employeeId || user.id;
     assocName = user.name;
   } else if (assignedAssociateId) {
-    const found = data.users.find(u => u.id === assignedAssociateId);
-    if (found) assocName = found.name;
+    const found = data.users.find(u => u.id === assignedAssociateId || u.employeeId === assignedAssociateId);
+    if (found) {
+      assocName = found.name;
+      assocId = found.employeeId || found.id;
+    }
   }
 
   const appId = db.nextApplicationId();
@@ -919,6 +1496,39 @@ apiRouter.post('/applications', authMiddleware, async (req: AuthenticatedRequest
     notes: notes || undefined,
   };
 
+  // Find or create customer
+  data.customers = data.customers || [];
+  const cleanPhoneNum = cleanPhone(customerPhone);
+  const cleanEmail = (customerEmail || '').toLowerCase().trim();
+  let customer = data.customers.find(
+    c => (cleanPhoneNum && c.mobile && cleanPhone(c.mobile) === cleanPhoneNum) ||
+         (cleanEmail && c.email && c.email.toLowerCase() === cleanEmail)
+  );
+
+  if (!customer) {
+    const custId = db.nextCustomerId();
+    customer = {
+      id: custId,
+      name: customerName.trim(),
+      mobile: customerPhone.trim(),
+      email: customerEmail ? customerEmail.trim() : undefined,
+      city: city ? city.trim() : undefined,
+      state: state ? state.trim() : undefined,
+      employmentType: 'Salaried',
+      assignedAssociateId: assocId || null,
+      assignedAssociateName: assocName,
+      totalApplicationsCount: 1,
+      totalDisbursedAmount: 0,
+      createdAt: now,
+      updatedAt: now,
+    };
+    data.customers.unshift(customer);
+  } else {
+    customer.totalApplicationsCount = (customer.totalApplicationsCount || 0) + 1;
+    customer.updatedAt = now;
+  }
+
+  application.customerId = customer.id;
   data.applications.unshift(application);
 
   // If created from a lead, update lead status
@@ -926,6 +1536,47 @@ apiRouter.post('/applications', authMiddleware, async (req: AuthenticatedRequest
     const lead = data.leads.find(l => l.id === leadId);
     if (lead) {
       lead.leadStatus = 'Application Started';
+    }
+  }
+
+  // Sync to Supabase applications and application_stages
+  const sb = getServerSupabase();
+  if (sb) {
+    try {
+      await sb.from('applications').insert({
+        id: appId,
+        customer_id: customer.id,
+        full_name: customerName.trim(),
+        mobile_number: customerPhone.trim(),
+        email: customerEmail ? customerEmail.trim() : null,
+        city: city ? city.trim() : null,
+        state: state ? state.trim() : null,
+        loan_type: loanType,
+        required_loan_amount: Number(requestedAmount),
+        associate_id: assocId || null,
+        associate_name: assocName || null,
+        user_id: user.id,
+        employment_type: 'Salaried',
+        status: 'In Process',
+        current_stage: 2,
+        notes: notes || null,
+        created_at: now,
+        updated_at: now,
+      });
+
+      const stageInserts = initialStages.map(s => ({
+        id: `STG-${Date.now()}-${s.number}`,
+        application_id: appId,
+        stage_number: s.number,
+        name: s.name,
+        status: s.status,
+        remarks: s.notes || null,
+        updated_by: user.name,
+        updated_at: now,
+      }));
+      await sb.from('application_stages').insert(stageInserts);
+    } catch (e) {
+      console.warn('Supabase post application sync notice:', e);
     }
   }
 
@@ -988,20 +1639,76 @@ apiRouter.post('/applications', authMiddleware, async (req: AuthenticatedRequest
   });
 });
 
-apiRouter.get('/applications/:id', authMiddleware, (req: AuthenticatedRequest, res: Response) => {
+apiRouter.get('/applications/:id', authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
   const { id } = req.params;
   const data = db.getData();
   const user = req.user!;
+  const sb = getServerSupabase();
 
-  const app = data.applications.find(a => a.id === id);
-  if (!app) return res.status(404).json({ error: 'Application not found.' });
+  if (!sb) {
+    return res.status(503).json({ error: 'SUPABASE_SERVICE_ROLE_KEY is missing from the server runtime environment.' });
+  }
 
-  if (user.role === 'ASSOCIATE' && app.assignedAssociateId !== user.id) {
+  const { data: row, error } = await sb.from('applications').select('*').eq('id', id).maybeSingle();
+  if (error) {
+    console.error('Supabase /api/applications/:id query error:', error);
+    return res.status(500).json({
+      error: `Supabase query failed: [${error.code}] ${error.message}`,
+      code: error.code,
+      message: error.message,
+      details: error.details,
+      hint: error.hint,
+    });
+  }
+
+  if (!row) return res.status(404).json({ error: 'Application not found in Supabase.' });
+
+  const currentStageNum = Number(row.current_stage || row.stage || 2);
+  const defaultStages: StageInfo[] = LOAN_STAGES.map(s => ({
+    number: s.number,
+    name: s.name,
+    status: s.number < currentStageNum ? 'Completed' : s.number === currentStageNum ? 'In Progress' : 'Pending',
+    updatedAt: row.updated_at || row.created_at || new Date().toISOString(),
+  }));
+
+  const app: Application = {
+    id: String(row.id || row.application_id || ''),
+    customerId: row.customer_id || undefined,
+    leadId: row.lead_id || undefined,
+    customerName: row.full_name || row.customer_name || row.applicant_name || row.name || 'Applicant',
+    customerPhone: row.mobile_number || row.customer_phone || row.mobile || row.phone || '',
+    customerEmail: row.email || row.customer_email || undefined,
+    city: row.city || undefined,
+    state: row.state || undefined,
+    loanType: row.loan_type || row.loanType || 'Personal Loan',
+    requestedAmount: Number(row.required_loan_amount || row.requested_amount || row.loan_amount || row.amount || 0),
+    sanctionAmount: Number(row.sanction_amount || row.sanctioned_amount || 0),
+    disbursementAmount: Number(row.disbursement_amount || row.disbursed_amount || 0),
+    lenderPartner: row.lender_partner || row.lending_partner || undefined,
+    assignedAssociateId: row.associate_id || row.assigned_associate_id || row.user_id || null,
+    assignedAssociateName: row.associate_name || row.assigned_associate_name || null,
+    assignedPartnerId: row.partner_id || row.assigned_partner_id || undefined,
+    assignedPartnerName: row.partner_name || row.assigned_partner_name || undefined,
+    status: row.status || 'In Process',
+    currentStage: currentStageNum,
+    currentStageName: LOAN_STAGES.find(s => s.number === currentStageNum)?.name || 'Application',
+    stages: Array.isArray(row.stages) ? row.stages : defaultStages,
+    createdDate: row.created_at || row.created_date || new Date().toISOString(),
+    updatedDate: row.updated_at || row.updated_date || new Date().toISOString(),
+    notes: row.notes || undefined,
+  };
+
+  if (
+    user.role === 'ASSOCIATE' &&
+    app.assignedAssociateId !== user.id &&
+    app.assignedAssociateId !== user.employeeId &&
+    (!user.name || app.assignedAssociateName?.toLowerCase() !== user.name.toLowerCase())
+  ) {
     return res.status(403).json({ error: 'Access denied. You can only view your assigned applications.' });
   }
 
-  const documents = data.documents.filter(d => d.applicationId === id);
-  const stageUpdates = data.stageUpdates.filter(s => s.applicationId === id);
+  const documents = (data.documents || []).filter(d => d.applicationId === id);
+  const stageUpdates = (data.stageUpdates || []).filter(s => s.applicationId === id);
 
   return res.json({ application: app, documents, stageUpdates });
 });
@@ -1689,20 +2396,16 @@ apiRouter.get('/notifications/logs', authMiddleware, (req: AuthenticatedRequest,
 // DASHBOARD STATS, DOCUMENTS & FOLLOWUPS
 // -------------------------------------------------------------
 
-apiRouter.get('/dashboard/stats', authMiddleware, (req: AuthenticatedRequest, res: Response) => {
+apiRouter.get('/dashboard/stats', authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
   const data = db.getData();
   const user = req.user!;
   const todayStr = new Date().toISOString().split('T')[0];
 
   const leads = user.role === 'ADMIN' ? data.leads : data.leads.filter(l => l.assignedAssociateId === user.id);
-  const apps = user.role === 'ADMIN' ? data.applications : data.applications.filter(a => a.assignedAssociateId === user.id);
   const followUps = user.role === 'ADMIN' ? data.followUps : data.followUps.filter(f => f.associateId === user.id);
 
   const totalLeads = leads.length;
   const newLeadsToday = leads.filter(l => l.createdDate && l.createdDate.startsWith(todayStr)).length;
-  const activeApplications = apps.filter(a => a.status !== 'Closed' && a.status !== 'Rejected').length;
-  const totalSanctionAmount = apps.reduce((acc, a) => acc + (a.sanctionAmount || 0), 0);
-  const totalDisbursedAmount = apps.reduce((acc, a) => acc + (a.disbursementAmount || 0), 0);
   const pendingFollowUpsToday = followUps.filter(f => f.scheduledDate === todayStr && f.status === 'Pending').length;
   const totalAssociates = data.users.filter(u => u.role === 'ASSOCIATE').length;
   const unassignedLeads = data.leads.filter(l => !l.assignedAssociateId).length;
@@ -1711,6 +2414,34 @@ apiRouter.get('/dashboard/stats', authMiddleware, (req: AuthenticatedRequest, re
   leads.forEach(l => {
     leadsByStatus[l.leadStatus] = (leadsByStatus[l.leadStatus] || 0) + 1;
   });
+
+  // Calculate live application metrics strictly from Supabase
+  let activeApplications = 0;
+  let totalSanctionAmount = 0;
+  let totalDisbursedAmount = 0;
+  let supabaseConnected = false;
+  let supabaseError: string | null = null;
+
+  const sb = getServerSupabase();
+  if (!sb) {
+    supabaseError = 'SUPABASE_SERVICE_ROLE_KEY is missing from the server runtime environment.';
+  } else {
+    let query = sb.from('applications').select('*');
+    if (user.role === 'ASSOCIATE') {
+      const associateKey = user.employeeId || user.id;
+      query = query.or(`associate_id.eq.${associateKey},user_id.eq.${user.id}`);
+    }
+    const { data: sbApps, error } = await query;
+    if (error) {
+      supabaseError = `[${error.code}] ${error.message}`;
+      console.error('Supabase /api/dashboard/stats query error:', error);
+    } else if (sbApps) {
+      supabaseConnected = true;
+      activeApplications = sbApps.filter(a => a.status !== 'Closed' && a.status !== 'Rejected').length;
+      totalSanctionAmount = sbApps.reduce((acc, a) => acc + Number(a.sanction_amount || a.sanctioned_amount || a.requested_amount || 0), 0);
+      totalDisbursedAmount = sbApps.reduce((acc, a) => acc + Number(a.disbursement_amount || a.disbursed_amount || 0), 0);
+    }
+  }
 
   return res.json({
     stats: {
@@ -1723,6 +2454,8 @@ apiRouter.get('/dashboard/stats', authMiddleware, (req: AuthenticatedRequest, re
       totalAssociates,
       unassignedLeads,
       leadsByStatus,
+      supabaseConnected,
+      supabaseError,
     },
   });
 });
@@ -1780,16 +2513,22 @@ apiRouter.patch('/settings', authMiddleware, requireAdmin, (req: AuthenticatedRe
 // 9. PUBLIC / WEBSITE INTAKE ENDPOINTS
 // -------------------------------------------------------------
 
-apiRouter.post('/website/leads', (req: Request, res: Response) => {
+apiRouter.post('/website/leads', async (req: Request, res: Response) => {
   const {
     customerName,
+    fullName,
     mobile,
+    phone,
+    customerPhone,
     email,
+    customerEmail,
     city,
     state,
     loanType,
     requiredAmount,
-    employmentType,
+    requestedAmount,
+    amount,
+    employmentType = 'Salaried',
     leadSource = 'Website',
     utmSource,
     utmMedium,
@@ -1799,7 +2538,12 @@ apiRouter.post('/website/leads', (req: Request, res: Response) => {
     landingPage,
   } = req.body;
 
-  if (!customerName || !mobile || !loanType) {
+  const finalName = (customerName || fullName || '').trim();
+  const finalPhone = (mobile || phone || customerPhone || '').trim();
+  const finalLoanType = loanType || 'Personal Loan';
+  const finalAmount = Number(requiredAmount || requestedAmount || amount || 0);
+
+  if (!finalName || !finalPhone || !finalLoanType) {
     return res.status(400).json({ error: 'Customer Name, Mobile, and Loan Type are required.' });
   }
 
@@ -1809,14 +2553,14 @@ apiRouter.post('/website/leads', (req: Request, res: Response) => {
 
   const newLead: Lead = {
     id: leadId,
-    customerName: customerName.trim(),
-    mobile: mobile.trim(),
-    email: email ? email.trim() : undefined,
-    city: city ? city.trim() : undefined,
-    state: state ? state.trim() : undefined,
-    loanType,
-    requiredAmount: Number(requiredAmount) || 0,
-    employmentType: employmentType || 'Salaried',
+    customerName: finalName,
+    mobile: finalPhone,
+    email: (email || customerEmail || '').trim() || undefined,
+    city: city ? String(city).trim() : undefined,
+    state: state ? String(state).trim() : undefined,
+    loanType: finalLoanType,
+    requiredAmount: finalAmount,
+    employmentType,
     leadSource: (leadSource as any) || 'Website',
     leadStatus: 'New',
     priority: 'WARM',
@@ -1835,7 +2579,7 @@ apiRouter.post('/website/leads', (req: Request, res: Response) => {
     'WEBSITE_LEAD_RECEIVED',
     'Lead',
     leadId,
-    `New enquiry received from public website for ${customerName} (${loanType}).`
+    `New enquiry received from public website for ${finalName} (${finalLoanType}).`
   );
   db.saveDatabase();
 
@@ -1845,3 +2589,1381 @@ apiRouter.post('/website/leads', (req: Request, res: Response) => {
     message: 'Thank you! Your loan enquiry has been received by Capitabee Financial Services.',
   });
 });
+
+apiRouter.post('/website/applications', async (req: Request, res: Response) => {
+  const {
+    customerName,
+    fullName,
+    full_name,
+    applicant_name,
+    mobile,
+    phone,
+    mobileNumber,
+    mobile_number,
+    customerPhone,
+    customer_phone,
+    email,
+    customerEmail,
+    customer_email,
+    city,
+    state,
+    loanType,
+    loan_type,
+    requiredAmount,
+    requestedAmount,
+    requiredLoanAmount,
+    required_loan_amount,
+    loan_amount,
+    amount,
+    employmentType = 'Salaried',
+    employment_type,
+    notes,
+    assignedAssociateId,
+    associate_id,
+    leadSource = 'Website',
+  } = req.body;
+
+  const finalName = (customerName || fullName || full_name || applicant_name || '').trim();
+  const finalPhone = (mobile || mobileNumber || mobile_number || phone || customerPhone || customer_phone || '').trim();
+  const finalEmail = (email || customerEmail || customer_email || '').trim();
+  const finalLoanType = loanType || loan_type || 'Personal Loan';
+  const finalAmount = Number(requiredAmount || requestedAmount || requiredLoanAmount || required_loan_amount || loan_amount || amount || 0);
+  const finalEmployment = employment_type || employmentType || 'Salaried';
+
+  if (!finalName || !finalPhone || !finalLoanType) {
+    return res.status(400).json({ error: 'Customer Name, Mobile, and Loan Type are required.' });
+  }
+
+  const data = db.getData();
+  const appId = db.nextApplicationId();
+  const leadId = db.nextLeadId();
+  const now = new Date().toISOString();
+
+  // Create lead record
+  const newLead: Lead = {
+    id: leadId,
+    customerName: finalName,
+    mobile: finalPhone,
+    email: finalEmail || undefined,
+    city: city ? String(city).trim() : undefined,
+    state: state ? String(state).trim() : undefined,
+    loanType: finalLoanType,
+    requiredAmount: finalAmount,
+    employmentType: finalEmployment,
+    leadSource: (leadSource as any) || 'Website',
+    leadStatus: 'Application Started',
+    priority: 'HOT',
+    createdDate: now,
+    assignedAssociateId: assignedAssociateId || null,
+  };
+  data.leads.unshift(newLead);
+
+  // Initialize the 12 standard stages
+  const initialStages: StageInfo[] = LOAN_STAGES.map(s => ({
+    number: s.number,
+    name: s.name,
+    status: s.number === 1 ? 'In Progress' : 'Pending',
+    updatedAt: now,
+    updatedBy: 'Website Intake',
+    notes: s.number === 1 ? 'Online loan application submitted via Capitabee website.' : undefined,
+  }));
+
+  const application: Application = {
+    id: appId,
+    leadId,
+    customerName: finalName,
+    customerPhone: finalPhone,
+    customerEmail: finalEmail || undefined,
+    city: city ? String(city).trim() : undefined,
+    state: state ? String(state).trim() : undefined,
+    loanType: finalLoanType,
+    requestedAmount: finalAmount,
+    sanctionAmount: 0,
+    disbursementAmount: 0,
+    assignedAssociateId: assignedAssociateId || null,
+    assignedAssociateName: null,
+    status: 'In Process',
+    currentStage: 1,
+    currentStageName: LOAN_STAGES[0]?.name || 'Inquiry & Eligibility Check',
+    stages: initialStages,
+    createdDate: now,
+    updatedDate: now,
+    notes: notes || 'Submitted directly from public website.',
+  };
+
+  // Create or update Customer record
+  data.customers = data.customers || [];
+  const cleanPhoneNum = cleanPhone(finalPhone);
+  const cleanEmail = (finalEmail || '').toLowerCase().trim();
+  let customer = data.customers.find(
+    c => (cleanPhoneNum && c.mobile && cleanPhone(c.mobile) === cleanPhoneNum) ||
+         (cleanEmail && c.email && c.email.toLowerCase() === cleanEmail)
+  );
+
+  if (!customer) {
+    const custId = db.nextCustomerId();
+    customer = {
+      id: custId,
+      name: finalName,
+      mobile: finalPhone,
+      email: finalEmail || undefined,
+      city: city ? String(city).trim() : undefined,
+      state: state ? String(state).trim() : undefined,
+      employmentType: finalEmployment,
+      assignedAssociateId: assignedAssociateId || null,
+      totalApplicationsCount: 1,
+      totalDisbursedAmount: 0,
+      createdAt: now,
+      updatedAt: now,
+    };
+    data.customers.unshift(customer);
+  } else {
+    customer.totalApplicationsCount = (customer.totalApplicationsCount || 0) + 1;
+    customer.updatedAt = now;
+  }
+
+  // Link customerId to application and lead
+  application.customerId = customer.id;
+  newLead.customerId = customer.id;
+
+  data.applications = data.applications || [];
+  data.applications.unshift(application);
+
+  // Trigger customer reconciliation to ensure summary metrics are fresh
+  reconcileDatabaseCustomers();
+
+  // Sync to Supabase customers and applications
+  const sb = getServerSupabase();
+  if (sb) {
+    try {
+      // 1. Sync Customer to Supabase (using customer_id column and generated UUID)
+      const custUUID = crypto.randomUUID();
+      await sb.from('customers').insert({
+        id: custUUID,
+        customer_id: customer.id,
+        full_name: finalName,
+        mobile_number: finalPhone,
+        email: finalEmail || null,
+        created_at: customer.createdAt || now,
+        updated_at: now,
+      });
+
+      // 2. Sync Application to Supabase with customer_id and valid columns
+      await sb.from('applications').insert({
+        id: appId,
+        customer_id: customer.id,
+        full_name: finalName,
+        mobile_number: finalPhone,
+        email: finalEmail || null,
+        city: city ? String(city).trim() : null,
+        state: state ? String(state).trim() : null,
+        loan_type: finalLoanType,
+        required_loan_amount: finalAmount,
+        associate_id: assignedAssociateId || null,
+        employment_type: finalEmployment,
+        status: 'In Process',
+        current_stage: 2,
+        notes: notes || 'Website application submission',
+        created_at: now,
+        updated_at: now,
+      });
+    } catch (e) {
+      console.warn('Supabase website app sync notice:', e);
+    }
+  }
+
+  db.logAudit(
+    { id: 'SYSTEM_WEB', name: 'Public Website Intake', role: 'ADMIN' },
+    'WEBSITE_APPLICATION_SUBMITTED',
+    'Application',
+    appId,
+    `Loan application submitted from website by ${finalName} for ₹${finalAmount.toLocaleString('en-IN')} (${finalLoanType}).`
+  );
+  db.saveDatabase();
+
+  return res.status(201).json({
+    success: true,
+    applicationId: appId,
+    leadId,
+    application,
+    message: 'Loan application submitted successfully to Capitabee Portal!',
+  });
+});
+
+// -------------------------------------------------------------
+// REVIEWS & TESTIMONIALS API
+// -------------------------------------------------------------
+apiRouter.get('/reviews', async (req: Request, res: Response) => {
+  const { status } = req.query;
+  const data = db.getData();
+  data.reviews = data.reviews || [];
+
+  const sb = getServerSupabase();
+  if (sb) {
+    try {
+      let query = sb.from('reviews').select('*');
+      if (status && status !== 'ALL') {
+        // Query case-insensitively or match title-case / lower-case
+        const s = String(status).trim();
+        query = query.ilike('status', s);
+      }
+      const { data: sbReviews, error } = await query;
+      if (!error && sbReviews && sbReviews.length > 0) {
+        // Map Supabase columns to CustomerReview format
+        const mapped: CustomerReview[] = sbReviews.map((r: any) => ({
+          id: r.id,
+          customerName: r.customer_name || r.name || 'Anonymous Customer',
+          rating: Number(r.rating) || 5,
+          comment: r.review_text || r.comment || '',
+          applicationId: r.application_id || undefined,
+          customerId: r.customer_id || undefined,
+          isPublic: r.is_public !== undefined ? r.is_public : true,
+          status: (r.status?.charAt(0).toUpperCase() + r.status?.slice(1).toLowerCase()) as any || 'Pending',
+          response: r.response || r.admin_response || undefined,
+          respondedAt: r.responded_at || r.moderated_at || undefined,
+          respondedBy: r.responded_by || r.moderated_by || undefined,
+          createdAt: r.created_at || new Date().toISOString(),
+        }));
+
+        // Merge with local reviews
+        const map = new Map<string, CustomerReview>();
+        for (const r of data.reviews) map.set(r.id, r);
+        for (const r of mapped) map.set(r.id, r);
+        data.reviews = Array.from(map.values());
+      }
+    } catch (e) {
+      console.warn('Supabase reviews sync notice:', e);
+    }
+  }
+
+  let results = [...data.reviews];
+  if (status && status !== 'ALL') {
+    const sLower = String(status).toLowerCase();
+    results = results.filter(r => r.status.toLowerCase() === sLower);
+  }
+
+  // Sort newest first
+  results.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+  return res.json({ reviews: results });
+});
+
+apiRouter.post('/reviews', async (req: Request, res: Response) => {
+  const { customerName, rating, comment, applicationId, customerId, status } = req.body;
+  if (!customerName || !rating || !comment) {
+    return res.status(400).json({ error: 'Customer Name, Rating, and Review Comment are required.' });
+  }
+
+  const data = db.getData();
+  data.reviews = data.reviews || [];
+  const now = new Date().toISOString();
+  const revId = `REV-${Date.now()}`;
+
+  const newReview: CustomerReview = {
+    id: revId,
+    customerName: customerName.trim(),
+    rating: Number(rating) || 5,
+    comment: comment.trim(),
+    applicationId: applicationId || undefined,
+    customerId: customerId || undefined,
+    isPublic: true,
+    status: status || 'Pending',
+    createdAt: now,
+  };
+
+  data.reviews.unshift(newReview);
+
+  // Sync to Supabase
+  const sb = getServerSupabase();
+  if (sb) {
+    try {
+      await sb.from('reviews').insert({
+        id: revId,
+        customer_name: customerName.trim(),
+        rating: Number(rating) || 5,
+        review_text: comment.trim(),
+        application_id: applicationId || null,
+        customer_id: customerId || null,
+        status: status || 'Pending',
+        created_at: now,
+      });
+    } catch (e) {
+      console.warn('Supabase insert review notice:', e);
+    }
+  }
+
+  db.saveDatabase();
+
+  return res.status(201).json({ success: true, review: newReview });
+});
+
+apiRouter.post('/reviews/:id/respond', authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+  const { id } = req.params;
+  const { response } = req.body;
+  if (!response || !response.trim()) {
+    return res.status(400).json({ error: 'Response message is required.' });
+  }
+
+  const data = db.getData();
+  data.reviews = data.reviews || [];
+  const review = data.reviews.find(r => r.id === id);
+  if (!review) {
+    return res.status(404).json({ error: 'Review not found.' });
+  }
+
+  review.response = response.trim();
+  review.respondedBy = req.user!.name;
+  review.respondedAt = new Date().toISOString();
+  db.saveDatabase();
+
+  return res.json({ success: true, review });
+});
+
+apiRouter.patch('/reviews/:id/status', authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+  const { id } = req.params;
+  const { status } = req.body;
+  if (!status || !['Pending', 'Approved', 'Rejected', 'Archived'].includes(status)) {
+    return res.status(400).json({ error: 'Valid status is required (Pending, Approved, Rejected, Archived).' });
+  }
+
+  const data = db.getData();
+  data.reviews = data.reviews || [];
+  const review = data.reviews.find(r => r.id === id);
+  if (!review) {
+    return res.status(404).json({ error: 'Review not found.' });
+  }
+
+  review.status = status;
+  db.saveDatabase();
+
+  return res.json({ success: true, review });
+});
+
+// -------------------------------------------------------------
+// 10. CUSTOMERS MANAGEMENT & PORTAL ACCOUNTS
+// -------------------------------------------------------------
+apiRouter.get('/customers', authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+  const user = req.user!;
+  const sb = getServerSupabase();
+
+  if (!sb) {
+    return res.status(503).json({
+      error: 'SUPABASE_SERVICE_ROLE_KEY is missing from the server runtime environment.',
+      customers: [],
+    });
+  }
+
+  const [{ data: sbCusts, error: custErr }, { data: sbApps, error: appErr }] = await Promise.all([
+    sb.from('customers').select('*').order('created_at', { ascending: false }),
+    sb.from('applications').select('*').order('created_at', { ascending: false }),
+  ]);
+
+  if (custErr || appErr) {
+    const err = custErr || appErr;
+    console.error('Supabase /api/customers query error:', err);
+    return res.status(500).json({
+      error: `Supabase query failed: [${err?.code}] ${err?.message}`,
+      code: err?.code,
+      message: err?.message,
+      details: err?.details,
+      hint: err?.hint,
+      customers: [],
+    });
+  }
+
+  const cleanPhone = (p?: string | null) => (p ? String(p).replace(/\D/g, '').slice(-10) : '');
+
+  // Map of customers keyed by their business customer ID (TEXT key, e.g., CUST-2026-100402)
+  const custMap = new Map<string, Customer>();
+
+  if (sbCusts && sbCusts.length > 0) {
+    for (const row of sbCusts) {
+      const businessCustId = String(row.customer_id || row.id || '');
+      const custName = row.full_name || row.customer_name || row.applicant_name || row.name || 'Customer';
+      const custMobile = row.mobile_number || row.customer_phone || row.mobile || row.phone || '';
+      const email = (row.email || row.customer_email || '').toLowerCase().trim();
+
+      const cObj: Customer = {
+        id: businessCustId,
+        customerId: businessCustId,
+        name: custName,
+        mobile: custMobile,
+        email: email || undefined,
+        city: row.city || undefined,
+        state: row.state || undefined,
+        pan: row.pan || undefined,
+        aadhaarLast4: row.aadhaar_last4 || undefined,
+        employmentType: row.employment_type || 'Salaried',
+        monthlyIncome: Number(row.monthly_income) || undefined,
+        assignedAssociateId: row.associate_id || row.assigned_associate_id || null,
+        assignedAssociateName: row.associate_name || row.assigned_associate_name || null,
+        portalAccessEnabled: false,
+        totalApplicationsCount: 0,
+        totalDisbursedAmount: 0,
+        createdAt: row.created_at || new Date().toISOString(),
+        updatedAt: row.updated_at || new Date().toISOString(),
+      };
+
+      custMap.set(businessCustId, cObj);
+    }
+  }
+
+  // Link applications using TEXT business key: applications.customer_id = customers.customer_id
+  const appsByCustomer = new Map<string, any[]>();
+  if (sbApps && sbApps.length > 0) {
+    for (const app of sbApps) {
+      const appCustId = app.customer_id ? String(app.customer_id).trim() : '';
+      if (!appCustId) continue;
+
+      if (!appsByCustomer.has(appCustId)) {
+        appsByCustomer.set(appCustId, []);
+      }
+      appsByCustomer.get(appCustId)!.push(app);
+
+      // If customer doesn't exist in custMap, create it from application data using the TEXT business customer_id
+      if (!custMap.has(appCustId)) {
+        const appCreated = app.created_at || new Date().toISOString();
+        custMap.set(appCustId, {
+          id: appCustId,
+          customerId: appCustId,
+          name: app.full_name || app.customer_name || app.applicant_name || 'Applicant',
+          mobile: app.mobile_number || app.customer_phone || app.mobile || '',
+          email: app.email || app.customer_email || undefined,
+          city: app.city || undefined,
+          state: app.state || undefined,
+          employmentType: app.employment_type || 'Salaried',
+          assignedAssociateId: app.associate_id || app.assigned_associate_id || null,
+          assignedAssociateName: app.associate_name || app.assigned_associate_name || null,
+          portalAccessEnabled: false,
+          totalApplicationsCount: 0,
+          totalDisbursedAmount: 0,
+          createdAt: appCreated,
+          updatedAt: appCreated,
+        });
+      }
+    }
+  }
+
+  // Enrich each customer with their linked applications metrics
+  const customerList: Customer[] = [];
+  for (const [custId, customer] of custMap.entries()) {
+    const linkedApps = appsByCustomer.get(custId) || [];
+    linkedApps.sort((a, b) => new Date(b.created_at || b.created_date).getTime() - new Date(a.created_at || a.created_date).getTime());
+
+    const totalCount = linkedApps.length;
+    const totalDisbursed = linkedApps
+      .filter(a => a.status === 'Disbursed')
+      .reduce((sum, a) => sum + Number(a.disbursement_amount || a.disbursed_amount || 0), 0);
+
+    const latestApp = linkedApps[0];
+    const latestStageNum = latestApp ? Number(latestApp.current_stage || latestApp.stage || 2) : undefined;
+    const latestStageName = latestStageNum ? (LOAN_STAGES.find(s => s.number === latestStageNum)?.name || 'Application') : undefined;
+
+    customerList.push({
+      ...customer,
+      totalApplicationsCount: totalCount,
+      totalDisbursedAmount: totalDisbursed,
+      latestApplicationId: latestApp ? String(latestApp.id || latestApp.application_id) : undefined,
+      latestLoanType: latestApp ? (latestApp.loan_type || latestApp.loanType || 'Personal Loan') : undefined,
+      latestLoanAmount: latestApp ? Number(latestApp.required_loan_amount || latestApp.requested_amount || latestApp.loan_amount || 0) : undefined,
+      latestStageNumber: latestStageNum,
+      latestStageName: latestStageName,
+      latestStatus: latestApp ? (latestApp.status || 'In Process') : undefined,
+      latestCreatedDate: latestApp ? (latestApp.created_at || latestApp.created_date) : undefined,
+    });
+  }
+
+  let filtered = customerList;
+
+  if (user.role === 'PARTNER') {
+    filtered = filtered.filter(c => c.assignedPartnerId === user.id || c.createdById === user.id);
+  } else if (user.role === 'ASSOCIATE') {
+    filtered = filtered.filter(c => c.assignedAssociateId === user.id || c.assignedAssociateId === user.employeeId);
+  } else if (user.role === 'EMPLOYEE') {
+    filtered = filtered.filter(c => c.assignedEmployeeId === user.id);
+  } else if (user.role === 'CUSTOMER') {
+    filtered = filtered.filter(
+      c =>
+        c.id === user.id ||
+        cleanPhone(c.mobile) === cleanPhone(user.mobile) ||
+        (c.email && c.email.toLowerCase() === user.email.toLowerCase())
+    );
+  }
+
+  const { search, partnerId, associateId } = req.query;
+  if (search) {
+    const q = String(search).toLowerCase();
+    filtered = filtered.filter(
+      c =>
+        c.name.toLowerCase().includes(q) ||
+        c.mobile.includes(q) ||
+        (c.email && c.email.toLowerCase().includes(q)) ||
+        c.id.toLowerCase().includes(q) ||
+        (c.city && c.city.toLowerCase().includes(q))
+    );
+  }
+  if (partnerId && user.role === 'ADMIN') {
+    filtered = filtered.filter(c => c.assignedPartnerId === partnerId);
+  }
+  if (associateId && user.role === 'ADMIN') {
+    filtered = filtered.filter(c => c.assignedAssociateId === associateId);
+  }
+
+  return res.json({ customers: filtered });
+});
+
+apiRouter.post('/customers', authMiddleware, (req: AuthenticatedRequest, res: Response) => {
+  const {
+    name,
+    mobile,
+    email,
+    city,
+    state,
+    pan,
+    aadhaarLast4,
+    employmentType,
+    monthlyIncome,
+    assignedAssociateId,
+    assignedPartnerId,
+    assignedEmployeeId,
+  } = req.body;
+
+  if (!name || !mobile) {
+    return res.status(400).json({ error: 'Customer name and mobile number are required.' });
+  }
+
+  const data = db.getData();
+  const user = req.user!;
+  data.customers = data.customers || [];
+
+  const custId = db.nextCustomerId();
+  const now = new Date().toISOString();
+
+  let assocName: string | null = null;
+  if (assignedAssociateId) {
+    const assoc = data.users.find(u => u.id === assignedAssociateId);
+    if (assoc) assocName = assoc.name;
+  }
+
+  let finalPartnerId = assignedPartnerId || null;
+  let partName: string | null = null;
+  if (finalPartnerId) {
+    const part = data.users.find(u => u.id === finalPartnerId);
+    if (part) partName = part.name;
+  } else if (user.role === 'PARTNER') {
+    finalPartnerId = user.id;
+    partName = user.name;
+  }
+
+  let empName: string | null = null;
+  if (assignedEmployeeId) {
+    const emp = data.users.find(u => u.id === assignedEmployeeId);
+    if (emp) empName = emp.name;
+  }
+
+  const newCust = {
+    id: custId,
+    name: name.trim(),
+    mobile: mobile.trim(),
+    email: email ? String(email).trim().toLowerCase() : undefined,
+    city,
+    state,
+    pan: pan ? String(pan).toUpperCase().trim() : undefined,
+    aadhaarLast4,
+    employmentType,
+    monthlyIncome: Number(monthlyIncome) || undefined,
+    assignedAssociateId: assignedAssociateId || null,
+    assignedAssociateName: assocName,
+    assignedPartnerId: finalPartnerId,
+    assignedPartnerName: partName,
+    assignedEmployeeId: assignedEmployeeId || null,
+    assignedEmployeeName: empName,
+    createdById: user.id,
+    createdByName: user.name,
+    portalAccessEnabled: false,
+    totalApplicationsCount: 0,
+    totalDisbursedAmount: 0,
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  data.customers.unshift(newCust);
+
+  // Sync Customer to Supabase if configured
+  const sb = getServerSupabase();
+  if (sb) {
+    try {
+      const custUUID = crypto.randomUUID();
+      sb.from('customers').insert({
+        id: custUUID,
+        customer_id: custId,
+        full_name: name.trim(),
+        mobile_number: mobile.trim(),
+        email: email ? String(email).trim().toLowerCase() : null,
+        created_at: now,
+        updated_at: now,
+      }).then(({ error }) => {
+        if (error) console.warn('Supabase customer insert notice:', error);
+      });
+    } catch (e) {
+      console.warn('Supabase customer insert exception:', e);
+    }
+  }
+
+  db.logAudit(
+    { id: user.id, name: user.name, role: user.role },
+    'CUSTOMER_CREATED',
+    'Customer',
+    custId,
+    `Customer ${custId} (${name}) created by ${user.role} ${user.name}.`
+  );
+  db.saveDatabase();
+
+  return res.status(201).json({ success: true, customer: newCust });
+});
+
+apiRouter.patch('/customers/:id', authMiddleware, (req: AuthenticatedRequest, res: Response) => {
+  const { id } = req.params;
+  const {
+    name,
+    mobile,
+    email,
+    city,
+    state,
+    pan,
+    aadhaarLast4,
+    employmentType,
+    monthlyIncome,
+    assignedAssociateId,
+    assignedPartnerId,
+    assignedEmployeeId,
+  } = req.body;
+
+  const data = db.getData();
+  data.customers = data.customers || [];
+  const cust = data.customers.find(c => c.id === id);
+
+  if (!cust) {
+    return res.status(404).json({ error: 'Customer not found.' });
+  }
+
+  if (name) cust.name = name.trim();
+  if (mobile) cust.mobile = mobile.trim();
+  if (email !== undefined) cust.email = email ? String(email).trim().toLowerCase() : undefined;
+  if (city !== undefined) cust.city = city;
+  if (state !== undefined) cust.state = state;
+  if (pan !== undefined) cust.pan = pan ? String(pan).toUpperCase().trim() : undefined;
+  if (aadhaarLast4 !== undefined) cust.aadhaarLast4 = aadhaarLast4;
+  if (employmentType !== undefined) cust.employmentType = employmentType;
+  if (monthlyIncome !== undefined) cust.monthlyIncome = Number(monthlyIncome) || undefined;
+
+  if (assignedAssociateId !== undefined) {
+    cust.assignedAssociateId = assignedAssociateId || null;
+    const assoc = data.users.find(u => u.id === assignedAssociateId);
+    cust.assignedAssociateName = assoc ? assoc.name : null;
+  }
+
+  if (assignedPartnerId !== undefined) {
+    cust.assignedPartnerId = assignedPartnerId || null;
+    const part = data.users.find(u => u.id === assignedPartnerId);
+    cust.assignedPartnerName = part ? part.name : null;
+  }
+
+  if (assignedEmployeeId !== undefined) {
+    cust.assignedEmployeeId = assignedEmployeeId || null;
+    const emp = data.users.find(u => u.id === assignedEmployeeId);
+    cust.assignedEmployeeName = emp ? emp.name : null;
+  }
+
+  cust.updatedAt = new Date().toISOString();
+  db.saveDatabase();
+
+  return res.json({ success: true, customer: cust });
+});
+
+apiRouter.post('/customers/:id/portal-access', authMiddleware, (req: AuthenticatedRequest, res: Response) => {
+  const { id } = req.params;
+  const { password } = req.body;
+
+  const data = db.getData();
+  data.customers = data.customers || [];
+  const cust = data.customers.find(c => c.id === id);
+
+  if (!cust) {
+    return res.status(404).json({ error: 'Customer not found.' });
+  }
+
+  if (!cust.email && !cust.mobile) {
+    return res.status(400).json({ error: 'Customer must have an email or mobile number for portal access.' });
+  }
+
+  const portalPassword = password || cust.mobile.slice(-6) || '123456';
+  const { hash, salt } = hashPassword(portalPassword);
+  const now = new Date().toISOString();
+
+  // Find or create portal user
+  let portalUser = data.users.find(u => u.id === cust.id || (cust.email && u.email.toLowerCase() === cust.email.toLowerCase()));
+  if (!portalUser) {
+    portalUser = {
+      id: cust.id,
+      name: cust.name,
+      email: cust.email || `${cust.mobile}@portal.capitabee.com`,
+      mobile: cust.mobile,
+      role: 'CUSTOMER',
+      department: 'Customer Portal',
+      designation: 'Borrower',
+      status: 'Active',
+      onlineStatus: 'Offline',
+      createdAt: now,
+      updatedAt: now,
+      passwordHash: hash,
+      salt,
+    };
+    data.users.push(portalUser);
+  } else {
+    portalUser.role = 'CUSTOMER';
+    portalUser.passwordHash = hash;
+    portalUser.salt = salt;
+    portalUser.status = 'Active';
+    portalUser.updatedAt = now;
+  }
+
+  cust.portalAccessEnabled = true;
+  cust.userId = portalUser.id;
+  cust.updatedAt = now;
+
+  db.logAudit(
+    { id: req.user!.id, name: req.user!.name, role: req.user!.role },
+    'CUSTOMER_PORTAL_ACCESS_ENABLED',
+    'Customer',
+    cust.id,
+    `Portal access credentials generated for customer ${cust.name} (${cust.id}).`
+  );
+  db.saveDatabase();
+
+  return res.json({
+    success: true,
+    message: `Portal access granted. Login ID: ${portalUser.email} / Mobile: ${cust.mobile}`,
+    loginCredentials: {
+      identifier: portalUser.email,
+      mobile: cust.mobile,
+      temporaryPassword: portalPassword,
+    },
+  });
+});
+
+apiRouter.post('/customers/:id/reset-portal-password', authMiddleware, (req: AuthenticatedRequest, res: Response) => {
+  const { id } = req.params;
+  const { newPassword } = req.body;
+  if (!newPassword || newPassword.length < 6) {
+    return res.status(400).json({ error: 'Password must be at least 6 characters.' });
+  }
+
+  const data = db.getData();
+  const cust = (data.customers || []).find(c => c.id === id);
+  if (!cust) {
+    return res.status(404).json({ error: 'Customer not found.' });
+  }
+
+  const portalUser = data.users.find(u => u.id === cust.id || (cust.email && u.email.toLowerCase() === cust.email.toLowerCase()));
+  if (!portalUser) {
+    return res.status(404).json({ error: 'Customer does not have an active portal user account.' });
+  }
+
+  const { hash, salt } = hashPassword(newPassword);
+  portalUser.passwordHash = hash;
+  portalUser.salt = salt;
+  portalUser.updatedAt = new Date().toISOString();
+  db.saveDatabase();
+
+  return res.json({ success: true, message: 'Portal password updated successfully.' });
+});
+
+// -------------------------------------------------------------
+// 11. CUSTOMER PORTAL VIEW DATA & LIVE PIPELINE
+// -------------------------------------------------------------
+apiRouter.get('/customer/portal', authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+  const user = req.user!;
+  const data = db.getData();
+
+  const customerMobile = user.mobile.replace(/\D/g, '').slice(-10);
+  const customerEmail = user.email.toLowerCase();
+
+  // Find customer record
+  let customer = (data.customers || []).find(
+    c => c.id === user.id || c.mobile.replace(/\D/g, '').slice(-10) === customerMobile || (c.email && c.email.toLowerCase() === customerEmail)
+  );
+
+  // Find all applications belonging to this customer
+  let applications = (data.applications || []).filter(
+    a =>
+      (customer && a.customerId === customer.id) ||
+      a.customerPhone.replace(/\D/g, '').slice(-10) === customerMobile ||
+      (a.customerEmail && a.customerEmail.toLowerCase() === customerEmail)
+  );
+
+  // If Supabase is connected, query Supabase for latest pipeline stages
+  const sb = getServerSupabase();
+  if (sb && customerMobile) {
+    try {
+      const { data: sbApps } = await sb
+        .from('applications')
+        .select('*')
+        .or(`mobile_number.ilike.%${customerMobile}%,phone.ilike.%${customerMobile}%`)
+        .order('created_at', { ascending: false });
+
+      if (sbApps && sbApps.length > 0) {
+        // Merge or augment
+        sbApps.forEach((row: any) => {
+          const appId = String(row.id || row.application_id);
+          const currentStageNum = Number(row.current_stage || row.stage || 2);
+          const existing = applications.find(a => a.id === appId);
+          if (existing) {
+            existing.currentStage = currentStageNum;
+            existing.currentStageName = LOAN_STAGES.find(s => s.number === currentStageNum)?.name || existing.currentStageName;
+          }
+        });
+      }
+    } catch (e) {
+      console.warn('Customer portal supabase fetch notice:', e);
+    }
+  }
+
+  // Get customer documents
+  const appIds = applications.map(a => a.id);
+  const documents = (data.documents || []).filter(d => appIds.includes(d.applicationId));
+
+  // Get customer messages
+  const messages = (data.internalMessages || []).filter(
+    m => appIds.includes(m.applicationId || '') || m.senderId === user.id || m.recipientId === user.id
+  );
+
+  // Get customer reviews
+  const reviews = (data.reviews || []).filter(
+    r => (customer && r.customerId === customer.id) || appIds.includes(r.applicationId || '') || r.customerName.toLowerCase() === user.name.toLowerCase()
+  );
+
+  // Get notifications
+  const notifications = (data.notifications || []).filter(
+    n => appIds.includes(n.applicationId || '') || (customer && n.customerId === customer.id)
+  );
+
+  return res.json({
+    customer: customer || {
+      id: user.id,
+      name: user.name,
+      mobile: user.mobile,
+      email: user.email,
+      portalAccessEnabled: true,
+      totalApplicationsCount: applications.length,
+      createdAt: user.createdAt,
+    },
+    applications,
+    documents,
+    messages,
+    reviews,
+    notifications,
+  });
+});
+
+// -------------------------------------------------------------
+// 12. LEAD TO CUSTOMER / APPLICATION CONVERSION
+// -------------------------------------------------------------
+apiRouter.post('/leads/:id/convert-to-customer', authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+  const { id } = req.params;
+  const { requestedAmount, loanType, lenderPartner, notes, assignedAssociateId, assignedPartnerId } = req.body;
+
+  const data = db.getData();
+  const user = req.user!;
+  const lead = data.leads.find(l => l.id === id);
+
+  if (!lead) {
+    return res.status(404).json({ error: 'Lead not found.' });
+  }
+
+  data.customers = data.customers || [];
+  const cleanMobile = lead.mobile.replace(/\D/g, '').slice(-10);
+
+  // Check if customer already exists to prevent duplication
+  let customer = data.customers.find(
+    c => c.mobile.replace(/\D/g, '').slice(-10) === cleanMobile || (lead.email && c.email?.toLowerCase() === lead.email.toLowerCase())
+  );
+
+  const now = new Date().toISOString();
+
+  if (!customer) {
+    const custId = db.nextCustomerId();
+    customer = {
+      id: custId,
+      name: lead.customerName,
+      mobile: lead.mobile,
+      email: lead.email,
+      city: lead.city,
+      state: lead.state,
+      employmentType: lead.employmentType,
+      assignedAssociateId: assignedAssociateId || lead.assignedAssociateId || null,
+      assignedAssociateName: lead.assignedAssociateName || null,
+      assignedPartnerId: assignedPartnerId || lead.assignedPartnerId || null,
+      assignedPartnerName: lead.assignedPartnerName || null,
+      createdById: user.id,
+      createdByName: user.name,
+      portalAccessEnabled: false,
+      totalApplicationsCount: 1,
+      totalDisbursedAmount: 0,
+      createdAt: now,
+      updatedAt: now,
+    };
+    data.customers.unshift(customer);
+  } else {
+    customer.totalApplicationsCount = (customer.totalApplicationsCount || 0) + 1;
+    customer.updatedAt = now;
+  }
+
+  // Create Application with all 12 stages initialized
+  const appId = db.nextApplicationId();
+  const stages: StageInfo[] = LOAN_STAGES.map(s => ({
+    number: s.number,
+    name: s.name,
+    status: s.number === 1 ? 'Completed' : s.number === 2 ? 'In Progress' : 'Pending',
+    updatedAt: now,
+    updatedBy: user.name,
+  }));
+
+  const application: Application = {
+    id: appId,
+    customerId: customer.id,
+    leadId: lead.id,
+    customerName: lead.customerName,
+    customerPhone: lead.mobile,
+    customerEmail: lead.email,
+    city: lead.city,
+    state: lead.state,
+    loanType: loanType || lead.loanType || 'Personal Loan',
+    requestedAmount: Number(requestedAmount || lead.requiredAmount || 500000),
+    assignedAssociateId: assignedAssociateId || lead.assignedAssociateId || null,
+    assignedAssociateName: lead.assignedAssociateName || null,
+    assignedPartnerId: assignedPartnerId || lead.assignedPartnerId || null,
+    assignedPartnerName: lead.assignedPartnerName || null,
+    createdById: user.id,
+    createdByName: user.name,
+    createdByRole: user.role,
+    status: 'In Process',
+    currentStage: 2,
+    currentStageName: LOAN_STAGES.find(s => s.number === 2)?.name || 'File Login & KYC Scrutiny',
+    stages,
+    createdDate: now,
+    updatedDate: now,
+    notes: notes || lead.notes,
+    lenderPartner: lenderPartner || undefined,
+  };
+
+  data.applications.unshift(application);
+
+  // Update Lead status
+  lead.leadStatus = 'Application Submitted';
+  lead.lastContactDate = now;
+
+  // Log Stage update
+  const stageLog: StageUpdateLog = {
+    id: `LOG-${Date.now()}`,
+    applicationId: appId,
+    stageNumber: 2,
+    stageName: 'File Login & KYC Scrutiny',
+    oldStatus: 'Pending',
+    newStatus: 'In Progress',
+    updatedBy: user.name,
+    updatedByRole: user.role,
+    timestamp: now,
+    internalNote: `Lead ${lead.id} successfully converted to Application ${appId} for Customer ${customer.name}.`,
+  };
+  data.stageUpdates.unshift(stageLog);
+
+  db.logAudit(
+    { id: user.id, name: user.name, role: user.role },
+    'LEAD_CONVERTED_TO_APPLICATION',
+    'Application',
+    appId,
+    `Lead ${lead.id} converted into Application ${appId} (Customer: ${customer.name}).`
+  );
+  db.saveDatabase();
+
+  return res.status(201).json({
+    success: true,
+    message: `Lead ${lead.id} converted into Application ${appId} successfully.`,
+    customer,
+    application,
+  });
+});
+
+// -------------------------------------------------------------
+// 13. CENTRAL ASSIGNMENT ENGINE (PARTNER, ASSOCIATE, EMPLOYEE)
+// -------------------------------------------------------------
+apiRouter.post('/assignments/assign', authMiddleware, requireAdmin, (req: AuthenticatedRequest, res: Response) => {
+  const { entityType, entityId, partnerId, associateId, employeeId } = req.body;
+  if (!entityType || !entityId) {
+    return res.status(400).json({ error: 'Entity Type and Entity ID are required.' });
+  }
+
+  const data = db.getData();
+  const user = req.user!;
+
+  let partnerName: string | null = null;
+  if (partnerId) {
+    const part = data.users.find(u => u.id === partnerId);
+    if (part) partnerName = part.name;
+  }
+
+  let associateName: string | null = null;
+  if (associateId) {
+    const assoc = data.users.find(u => u.id === associateId);
+    if (assoc) associateName = assoc.name;
+  }
+
+  let employeeName: string | null = null;
+  if (employeeId) {
+    const emp = data.users.find(u => u.id === employeeId);
+    if (emp) employeeName = emp.name;
+  }
+
+  const now = new Date().toISOString();
+
+  if (entityType === 'lead') {
+    const lead = data.leads.find(l => l.id === entityId);
+    if (!lead) return res.status(404).json({ error: 'Lead not found.' });
+
+    if (partnerId !== undefined) {
+      lead.assignedPartnerId = partnerId || null;
+      lead.assignedPartnerName = partnerName;
+    }
+    if (associateId !== undefined) {
+      lead.assignedAssociateId = associateId || null;
+      lead.assignedAssociateName = associateName;
+    }
+    if (employeeId !== undefined) {
+      lead.assignedEmployeeId = employeeId || null;
+      lead.assignedEmployeeName = employeeName;
+    }
+  } else if (entityType === 'application') {
+    const app = data.applications.find(a => a.id === entityId);
+    if (!app) return res.status(404).json({ error: 'Application not found.' });
+
+    if (partnerId !== undefined) {
+      app.assignedPartnerId = partnerId || null;
+      app.assignedPartnerName = partnerName;
+    }
+    if (associateId !== undefined) {
+      app.assignedAssociateId = associateId || null;
+      app.assignedAssociateName = associateName;
+    }
+    if (employeeId !== undefined) {
+      app.assignedEmployeeId = employeeId || null;
+      app.assignedEmployeeName = employeeName;
+    }
+    app.updatedDate = now;
+  } else if (entityType === 'customer') {
+    const cust = (data.customers || []).find(c => c.id === entityId);
+    if (!cust) return res.status(404).json({ error: 'Customer not found.' });
+
+    if (partnerId !== undefined) {
+      cust.assignedPartnerId = partnerId || null;
+      cust.assignedPartnerName = partnerName;
+    }
+    if (associateId !== undefined) {
+      cust.assignedAssociateId = associateId || null;
+      cust.assignedAssociateName = associateName;
+    }
+    if (employeeId !== undefined) {
+      cust.assignedEmployeeId = employeeId || null;
+      cust.assignedEmployeeName = employeeName;
+    }
+    cust.updatedAt = now;
+  }
+
+  db.logAudit(
+    { id: user.id, name: user.name, role: user.role },
+    'CENTRAL_ASSIGNMENT_UPDATED',
+    entityType,
+    entityId,
+    `Assigned Partner: ${partnerName || 'None'}, Associate: ${associateName || 'None'}, Employee: ${employeeName || 'None'}.`
+  );
+  db.saveDatabase();
+
+  return res.json({ success: true, message: `Assignment updated for ${entityType} ${entityId}.` });
+});
+
+// -------------------------------------------------------------
+// 14. TARGETS & PERFORMANCE ENGINE
+// -------------------------------------------------------------
+apiRouter.get('/targets', authMiddleware, (req: AuthenticatedRequest, res: Response) => {
+  const data = db.getData();
+  const user = req.user!;
+  data.targets = data.targets || [];
+
+  const currentMonth = new Date().toISOString().slice(0, 7); // 'YYYY-MM'
+  const targets = (data.users || [])
+    .filter(u => u.role === 'ASSOCIATE' || u.role === 'PARTNER')
+    .map(u => {
+      // Find stored target for user
+      const existing = data.targets.find(t => (t.associateId === u.id || t.partnerId === u.id) && t.monthYear === currentMonth);
+      const targetAmount = existing ? existing.targetAmount : u.target || (u.role === 'PARTNER' ? 10000000 : 5000000);
+      const targetApps = existing ? existing.targetApplications : 10;
+      const targetCusts = existing ? existing.targetCustomers : (u.targetCustomers || 20);
+
+      // Real live performance from applications
+      const userApps = (data.applications || []).filter(
+        a => a.assignedAssociateId === u.id || a.assignedPartnerId === u.id || a.createdById === u.id
+      );
+      const disbursedApps = userApps.filter(a => a.status === 'Disbursed');
+      const achievedAmount = disbursedApps.reduce((acc, a) => acc + (a.disbursementAmount || 0), 0);
+      const achievedApplications = disbursedApps.length;
+      const achievedCustomers = (data.customers || []).filter(c => c.assignedPartnerId === u.id || c.assignedAssociateId === u.id).length;
+
+      return {
+        id: existing?.id || `TGT-${u.id}-${currentMonth}`,
+        associateId: u.role === 'ASSOCIATE' ? u.id : undefined,
+        associateName: u.role === 'ASSOCIATE' ? u.name : undefined,
+        partnerId: u.role === 'PARTNER' ? u.id : undefined,
+        partnerName: u.role === 'PARTNER' ? u.name : undefined,
+        role: u.role,
+        monthYear: currentMonth,
+        targetAmount,
+        achievedAmount,
+        targetApplications: targetApps,
+        achievedApplications,
+        targetCustomers: targetCusts,
+        achievedCustomers,
+        notes: existing?.notes,
+        updatedAt: existing?.updatedAt || u.updatedAt,
+      };
+    });
+
+  return res.json({ targets });
+});
+
+apiRouter.post('/targets', authMiddleware, requireAdmin, (req: AuthenticatedRequest, res: Response) => {
+  const { userId, role, targetAmount, targetApplications, targetCustomers, monthYear, notes } = req.body;
+  if (!userId || !targetAmount) {
+    return res.status(400).json({ error: 'User ID and Target Amount are required.' });
+  }
+
+  const data = db.getData();
+  data.targets = data.targets || [];
+  const month = monthYear || new Date().toISOString().slice(0, 7);
+
+  const existingIdx = data.targets.findIndex(t => (t.associateId === userId || t.partnerId === userId) && t.monthYear === month);
+
+  const user = data.users.find(u => u.id === userId);
+  const userRole = role || user?.role || 'ASSOCIATE';
+
+  const newTarget: AssociateTarget = {
+    id: `TGT-${userId}-${month}`,
+    associateId: userRole === 'ASSOCIATE' ? userId : '',
+    associateName: userRole === 'ASSOCIATE' ? user?.name : undefined,
+    partnerId: userRole === 'PARTNER' ? userId : undefined,
+    partnerName: userRole === 'PARTNER' ? user?.name : undefined,
+    role: userRole,
+    monthYear: month,
+    targetAmount: Number(targetAmount),
+    achievedAmount: 0,
+    targetApplications: Number(targetApplications) || 10,
+    achievedApplications: 0,
+    targetCustomers: Number(targetCustomers) || 20,
+    notes,
+    updatedAt: new Date().toISOString(),
+  };
+
+  if (existingIdx >= 0) {
+    data.targets[existingIdx] = newTarget;
+  } else {
+    data.targets.push(newTarget);
+  }
+
+  // Update on user object as default monthlyTarget
+  if (user) {
+    user.target = Number(targetAmount);
+    if (targetCustomers) user.targetCustomers = Number(targetCustomers);
+  }
+
+  db.logAudit(
+    { id: req.user!.id, name: req.user!.name, role: req.user!.role },
+    'TARGET_UPDATED',
+    userRole,
+    userId,
+    `Admin set ${userRole} target for ${userId} (${user?.name}): ₹${Number(targetAmount).toLocaleString('en-IN')}.`
+  );
+  db.saveDatabase();
+
+  return res.json({ success: true, target: newTarget });
+});
+
+// -------------------------------------------------------------
+// 15. CSV EXPORT ENGINE (FILTERED, SANITIZED REAL RECORDS)
+// -------------------------------------------------------------
+apiRouter.get('/export/csv', authMiddleware, (req: AuthenticatedRequest, res: Response) => {
+  const { type = 'leads', status, loanType, partnerId, associateId, dateFrom, dateTo } = req.query;
+  const data = db.getData();
+  const user = req.user!;
+
+  function escapeCsv(val: any): string {
+    if (val === null || val === undefined) return '""';
+    const str = String(val).replace(/"/g, '""');
+    return `"${str}"`;
+  }
+
+  let csvContent = '';
+  const now = new Date().toISOString().split('T')[0];
+
+  if (type === 'leads') {
+    let leads = data.leads;
+    if (user.role === 'ASSOCIATE') {
+      leads = leads.filter(l => l.assignedAssociateId === user.id);
+    } else if (user.role === 'PARTNER') {
+      leads = leads.filter(l => l.assignedPartnerId === user.id || l.createdById === user.id);
+    }
+
+    if (status && status !== 'All') leads = leads.filter(l => l.leadStatus === status);
+    if (loanType && loanType !== 'All') leads = leads.filter(l => l.loanType === loanType);
+    if (partnerId && user.role === 'ADMIN') leads = leads.filter(l => l.assignedPartnerId === partnerId);
+    if (associateId && user.role === 'ADMIN') leads = leads.filter(l => l.assignedAssociateId === associateId);
+
+    const headers = [
+      'Lead ID',
+      'Customer Name',
+      'Mobile',
+      'Email',
+      'City',
+      'State',
+      'Loan Type',
+      'Required Amount (INR)',
+      'Employment Type',
+      'Lead Source',
+      'Status',
+      'Priority',
+      'Assigned Associate',
+      'Assigned Partner',
+      'Created Date',
+      'Next Follow-up',
+      'Notes',
+    ];
+
+    const rows = leads.map(l => [
+      escapeCsv(l.id),
+      escapeCsv(l.customerName),
+      escapeCsv(l.mobile),
+      escapeCsv(l.email || ''),
+      escapeCsv(l.city || ''),
+      escapeCsv(l.state || ''),
+      escapeCsv(l.loanType),
+      escapeCsv(l.requiredAmount),
+      escapeCsv(l.employmentType || ''),
+      escapeCsv(l.leadSource),
+      escapeCsv(l.leadStatus),
+      escapeCsv(l.priority),
+      escapeCsv(l.assignedAssociateName || l.assignedAssociateId || ''),
+      escapeCsv(l.assignedPartnerName || l.assignedPartnerId || ''),
+      escapeCsv(l.createdDate),
+      escapeCsv(l.nextFollowUpDate || ''),
+      escapeCsv(l.notes || ''),
+    ]);
+
+    csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\r\n');
+  } else if (type === 'applications') {
+    let apps = data.applications;
+    if (user.role === 'ASSOCIATE') {
+      apps = apps.filter(a => a.assignedAssociateId === user.id);
+    } else if (user.role === 'PARTNER') {
+      apps = apps.filter(a => a.assignedPartnerId === user.id || a.createdById === user.id);
+    }
+
+    if (status && status !== 'All') apps = apps.filter(a => a.status === status);
+    if (loanType && loanType !== 'All') apps = apps.filter(a => a.loanType === loanType);
+
+    const headers = [
+      'Application ID',
+      'Customer Name',
+      'Phone',
+      'Email',
+      'City',
+      'Loan Type',
+      'Requested Amount',
+      'Sanction Amount',
+      'Disbursed Amount',
+      'Lender Partner',
+      'Current Stage',
+      'Stage Name',
+      'Status',
+      'Assigned Associate',
+      'Assigned Partner',
+      'Created Date',
+      'Updated Date',
+    ];
+
+    const rows = apps.map(a => [
+      escapeCsv(a.id),
+      escapeCsv(a.customerName),
+      escapeCsv(a.customerPhone),
+      escapeCsv(a.customerEmail || ''),
+      escapeCsv(a.city || ''),
+      escapeCsv(a.loanType),
+      escapeCsv(a.requestedAmount),
+      escapeCsv(a.sanctionAmount || 0),
+      escapeCsv(a.disbursementAmount || 0),
+      escapeCsv(a.lenderPartner || ''),
+      escapeCsv(a.currentStage),
+      escapeCsv(a.currentStageName),
+      escapeCsv(a.status),
+      escapeCsv(a.assignedAssociateName || a.assignedAssociateId || ''),
+      escapeCsv(a.assignedPartnerName || a.assignedPartnerId || ''),
+      escapeCsv(a.createdDate),
+      escapeCsv(a.updatedDate),
+    ]);
+
+    csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\r\n');
+  } else if (type === 'customers') {
+    let custs = data.customers || [];
+    if (user.role === 'ASSOCIATE') {
+      custs = custs.filter(c => c.assignedAssociateId === user.id);
+    } else if (user.role === 'PARTNER') {
+      custs = custs.filter(c => c.assignedPartnerId === user.id || c.createdById === user.id);
+    }
+
+    const headers = [
+      'Customer ID',
+      'Name',
+      'Mobile',
+      'Email',
+      'City',
+      'State',
+      'PAN',
+      'Employment Type',
+      'Monthly Income',
+      'Assigned Associate',
+      'Assigned Partner',
+      'Portal Access',
+      'Created Date',
+    ];
+
+    const rows = custs.map(c => [
+      escapeCsv(c.id),
+      escapeCsv(c.name),
+      escapeCsv(c.mobile),
+      escapeCsv(c.email || ''),
+      escapeCsv(c.city || ''),
+      escapeCsv(c.state || ''),
+      escapeCsv(c.pan || ''),
+      escapeCsv(c.employmentType || ''),
+      escapeCsv(c.monthlyIncome || 0),
+      escapeCsv(c.assignedAssociateName || ''),
+      escapeCsv(c.assignedPartnerName || ''),
+      escapeCsv(c.portalAccessEnabled ? 'Enabled' : 'Disabled'),
+      escapeCsv(c.createdAt),
+    ]);
+
+    csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\r\n');
+  }
+
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+  res.setHeader('Content-Disposition', `attachment; filename="capitabee_${type}_${now}.csv"`);
+  return res.send(csvContent);
+});
+

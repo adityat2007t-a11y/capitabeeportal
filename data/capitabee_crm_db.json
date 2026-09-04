@@ -9,17 +9,431 @@
       "department": "Management",
       "designation": "Principal Administrator",
       "status": "Active",
-      "onlineStatus": "Offline",
+      "onlineStatus": "Online",
       "createdAt": "2026-08-28T08:13:11.223Z",
       "updatedAt": "2026-08-28T08:13:11.223Z",
       "passwordHash": "69a48ffde0c4d5469b6ed3173cba050400429036ffc37041ca59357557f1a3f42f528b5ba1d1ad736203f620b14f805267388ff6bb9a3913a37d86003ad284e0",
       "salt": "e61f206e862d5abb51bf167fc848e571",
-      "lastLogin": "2026-08-28T08:18:10.796Z",
-      "sessionStartedAt": "2026-08-28T08:18:10.796Z",
-      "lastLogout": "2026-08-28T08:25:34.426Z"
+      "lastLogin": "2026-09-04T18:12:24.803Z",
+      "sessionStartedAt": "2026-09-04T18:12:24.803Z",
+      "lastLogout": "2026-09-02T12:33:56.547Z"
+    },
+    {
+      "id": "CB-1001",
+      "name": "RAJPAT UPADHYAY",
+      "email": "rajpatupadhyay439@gmail.com",
+      "mobile": "8108895508",
+      "role": "ASSOCIATE",
+      "employeeId": "CB-1001",
+      "department": "Loan Operations",
+      "designation": "Loan Relationship Associate",
+      "status": "Inactive",
+      "onlineStatus": "Offline",
+      "target": 5000000,
+      "joiningDate": "2026-08-29",
+      "createdAt": "2026-08-29T07:02:32.739Z",
+      "updatedAt": "2026-09-04T18:10:47.779Z",
+      "passwordHash": "e347df0267b82fb178415e36673a7cccb2e6974e32443e0c4742f891068b8cafebcd091e886e9b2e7a996fa7cf05f180b7a2890361a2a2b5c1b2ba34a9809f7a",
+      "salt": "71dadb9b056a975196ae0b4d41550f7e",
+      "lastLogin": "2026-08-29T07:04:28.327Z",
+      "sessionStartedAt": "2026-08-29T07:04:28.327Z",
+      "lastLogout": "2026-08-29T07:36:46.211Z"
     }
   ],
-  "sessions": [],
+  "sessions": [
+    {
+      "token": "2e428bbe0d8be9ff6998198f755760db315096bab8178652c120f128e48d9644",
+      "userId": "CB-ADMIN-01",
+      "role": "ADMIN",
+      "createdAt": "2026-08-29T07:44:01.900Z",
+      "expiresAt": "2026-08-30T07:44:01.900Z"
+    },
+    {
+      "token": "ae80065a7f5c4c317c4f6f05b84cf2dc82e629c01bdc4d86d60b73f8ebffc744",
+      "userId": "CB-ADMIN-01",
+      "role": "ADMIN",
+      "createdAt": "2026-08-29T07:49:51.707Z",
+      "expiresAt": "2026-08-30T07:49:51.707Z"
+    },
+    {
+      "token": "af509e09aaf919e777b88d0c9060f0ae53938085e686ba26fa8ed6d0a60e0cf9",
+      "userId": "CB-ADMIN-01",
+      "role": "ADMIN",
+      "createdAt": "2026-08-29T07:50:01.180Z",
+      "expiresAt": "2026-08-30T07:50:01.180Z"
+    },
+    {
+      "token": "0232567679b089ca0fa8f5511312555a6de7cb42950ab77e79518643285cd646",
+      "userId": "CB-ADMIN-01",
+      "role": "ADMIN",
+      "createdAt": "2026-08-29T07:51:28.555Z",
+      "expiresAt": "2026-08-30T07:51:28.555Z"
+    },
+    {
+      "token": "b431e7733fc4f42d4025b11a17ebd5dbd03c1eaf62ba1014db88ad64a202bd31",
+      "userId": "CB-ADMIN-01",
+      "role": "ADMIN",
+      "createdAt": "2026-08-29T07:51:45.750Z",
+      "expiresAt": "2026-08-30T07:51:45.750Z"
+    },
+    {
+      "token": "fe6019501ebd4da813b9cd726a7c61c7124037a1dd8fa6f8d14d15ff76cca35e",
+      "userId": "CB-ADMIN-01",
+      "role": "ADMIN",
+      "createdAt": "2026-08-31T08:08:22.873Z",
+      "expiresAt": "2026-09-01T08:08:22.873Z"
+    },
+    {
+      "token": "a8d3ae88f8889d65e40b1b1d060a582920a1a78cdc502647d7a5d53138da46a9",
+      "userId": "CB-ADMIN-01",
+      "role": "ADMIN",
+      "createdAt": "2026-08-31T08:08:27.131Z",
+      "expiresAt": "2026-09-01T08:08:27.131Z"
+    },
+    {
+      "token": "e61ff634ad6107fdf13375f77bb30a4e65c3b42974804deb0f9f63af93f81c22",
+      "userId": "CB-ADMIN-01",
+      "role": "ADMIN",
+      "createdAt": "2026-08-31T08:13:23.822Z",
+      "expiresAt": "2026-09-01T08:13:23.822Z"
+    },
+    {
+      "token": "41131f747527130f26c78259f21604d548eed4af0afaa9bc2c9afa9df8e637c3",
+      "userId": "CB-ADMIN-01",
+      "role": "ADMIN",
+      "createdAt": "2026-08-31T08:16:49.372Z",
+      "expiresAt": "2026-09-01T08:16:49.372Z"
+    },
+    {
+      "token": "33c5e56f254330c5b35c427dbe0ce552878b3f3ef9beadb90bb2df063f50bef5",
+      "userId": "CB-ADMIN-01",
+      "role": "ADMIN",
+      "createdAt": "2026-08-31T08:17:05.162Z",
+      "expiresAt": "2026-09-01T08:17:05.162Z"
+    },
+    {
+      "token": "fe4e3024633f9cd6f5860605a89299fa246078330f13fa2213c6c19940ab1198",
+      "userId": "CB-ADMIN-01",
+      "role": "ADMIN",
+      "createdAt": "2026-08-31T08:28:00.770Z",
+      "expiresAt": "2026-09-01T08:28:00.770Z"
+    },
+    {
+      "token": "1763fce2be984b0dae1794400c880f2a435d284f423c48761609902fb58a3607",
+      "userId": "CB-ADMIN-01",
+      "role": "ADMIN",
+      "createdAt": "2026-08-31T09:18:40.050Z",
+      "expiresAt": "2026-09-01T09:18:40.050Z"
+    },
+    {
+      "token": "a7f384376f656baa48a024c6be56af72b05d2868ef6631d118743939da6d46b8",
+      "userId": "CB-ADMIN-01",
+      "role": "ADMIN",
+      "createdAt": "2026-08-31T09:18:45.088Z",
+      "expiresAt": "2026-09-01T09:18:45.088Z"
+    },
+    {
+      "token": "538ed3e6105524fa93e622689f03faecf2687eb67c006d857bd58f93d4ecb966",
+      "userId": "CB-ADMIN-01",
+      "role": "ADMIN",
+      "createdAt": "2026-08-31T09:23:31.810Z",
+      "expiresAt": "2026-09-01T09:23:31.810Z"
+    },
+    {
+      "token": "fbb25307c71b202d90275ca7f2c8e99ceb798b6a3f52cd16e7b61552bc6c35d2",
+      "userId": "CB-ADMIN-01",
+      "role": "ADMIN",
+      "createdAt": "2026-09-01T07:26:21.305Z",
+      "expiresAt": "2026-09-02T07:26:21.305Z"
+    },
+    {
+      "token": "6e99672061b24951b1f423bce540b254c15f391a06414addcd4a4670aad1173e",
+      "userId": "CB-ADMIN-01",
+      "role": "ADMIN",
+      "createdAt": "2026-09-01T07:26:28.267Z",
+      "expiresAt": "2026-09-02T07:26:28.267Z"
+    },
+    {
+      "token": "308dba0b5d728abd9da663a2d3aa6fe307ee05626d1ba3909bef34de1b00a074",
+      "userId": "CB-ADMIN-01",
+      "role": "ADMIN",
+      "createdAt": "2026-09-01T07:28:02.926Z",
+      "expiresAt": "2026-09-02T07:28:02.926Z"
+    },
+    {
+      "token": "273e362bf07723c10b3b16d43a0f55fb20a790749c373732f3a06413eed1aaff",
+      "userId": "CB-ADMIN-01",
+      "role": "ADMIN",
+      "createdAt": "2026-09-01T07:28:27.033Z",
+      "expiresAt": "2026-09-02T07:28:27.033Z"
+    },
+    {
+      "token": "a7fd61861cdc3e7e650c1a1c26e32d7edf180e8c2d593d3557b26fca5e52c9f0",
+      "userId": "CB-ADMIN-01",
+      "role": "ADMIN",
+      "createdAt": "2026-09-01T07:29:06.266Z",
+      "expiresAt": "2026-09-02T07:29:06.266Z"
+    },
+    {
+      "token": "f93e3dd82a42d79667fcee7a12a467f6cf5ef2c5fac15ecca0290bb17ca241b1",
+      "userId": "CB-ADMIN-01",
+      "role": "ADMIN",
+      "createdAt": "2026-09-01T07:47:09.888Z",
+      "expiresAt": "2026-09-02T07:47:09.888Z"
+    },
+    {
+      "token": "0ea641d9f6f0979255d37734037d6913f6a35aaa63a866488c04cb981501a4a0",
+      "userId": "CB-ADMIN-01",
+      "role": "ADMIN",
+      "createdAt": "2026-09-01T07:47:39.278Z",
+      "expiresAt": "2026-09-02T07:47:39.278Z"
+    },
+    {
+      "token": "1d51ad042cd9c390ad5e293f2383842289c9e733bc8840c49a856df6acb15751",
+      "userId": "CB-ADMIN-01",
+      "role": "ADMIN",
+      "createdAt": "2026-09-01T07:48:19.947Z",
+      "expiresAt": "2026-09-02T07:48:19.947Z"
+    },
+    {
+      "token": "00e06d0f2ad9b664a8d48e0f61e0deb3f1b7c4eeb449c62142bea95e9e1ab720",
+      "userId": "CB-ADMIN-01",
+      "role": "ADMIN",
+      "createdAt": "2026-09-02T08:42:06.424Z",
+      "expiresAt": "2026-09-03T08:42:06.424Z"
+    },
+    {
+      "token": "6e253e2ef31c9cb50252b986bf4832fc45105dd7963ee3d2316deb12d48ed0f3",
+      "userId": "CB-ADMIN-01",
+      "role": "ADMIN",
+      "createdAt": "2026-09-02T09:34:01.988Z",
+      "expiresAt": "2026-09-03T09:34:01.988Z"
+    },
+    {
+      "token": "98eb72c31a2977b6f2fa8cda5283ba436c96d2596bf5c5298c5a9adfd32757c5",
+      "userId": "CB-ADMIN-01",
+      "role": "ADMIN",
+      "createdAt": "2026-09-02T12:28:07.267Z",
+      "expiresAt": "2026-09-03T12:28:07.267Z"
+    },
+    {
+      "token": "016aedad82fcd4d57c524ffc14ac276879693f208a8f5f2424ff3009ccf9686f",
+      "userId": "CB-ADMIN-01",
+      "role": "ADMIN",
+      "createdAt": "2026-09-02T12:32:28.055Z",
+      "expiresAt": "2026-09-03T12:32:28.055Z"
+    },
+    {
+      "token": "5c5054c6e1af0be81f30027a7f8778acdb49b40c48380922606e2cbc735bd2bd",
+      "userId": "CB-ADMIN-01",
+      "role": "ADMIN",
+      "createdAt": "2026-09-02T12:32:37.453Z",
+      "expiresAt": "2026-09-03T12:32:37.453Z"
+    },
+    {
+      "token": "e64b723b0a4f8903785ee5a897ebb8d2651e110d55971440f65df70c7d834bd5",
+      "userId": "CB-ADMIN-01",
+      "role": "ADMIN",
+      "createdAt": "2026-09-02T12:32:45.914Z",
+      "expiresAt": "2026-09-03T12:32:45.914Z"
+    },
+    {
+      "token": "23e6e3b00b085568ea3c2f463babfe8617da8a320ad946bf18e5f224bd6ee3ae",
+      "userId": "CB-ADMIN-01",
+      "role": "ADMIN",
+      "createdAt": "2026-09-02T12:33:56.558Z",
+      "expiresAt": "2026-09-03T12:33:56.558Z"
+    },
+    {
+      "token": "6171902cf6173f96f7ea7ffebba27fd09f6ff802d91f6dac243db25306de5579",
+      "userId": "CB-ADMIN-01",
+      "role": "ADMIN",
+      "createdAt": "2026-09-02T12:39:28.396Z",
+      "expiresAt": "2026-09-03T12:39:28.396Z"
+    },
+    {
+      "token": "2496656a2beaab5f65e22bc8c075d6677c7acb13e914078bb5a7acf768e28911",
+      "userId": "CB-ADMIN-01",
+      "role": "ADMIN",
+      "createdAt": "2026-09-02T13:18:38.672Z",
+      "expiresAt": "2026-09-03T13:18:38.672Z"
+    },
+    {
+      "token": "1df9f2b8d3a99327811eb3736dc548db9739ec0667b39c0f44fb7293fedab199",
+      "userId": "CB-ADMIN-01",
+      "role": "ADMIN",
+      "createdAt": "2026-09-03T09:14:20.376Z",
+      "expiresAt": "2026-09-04T09:14:20.376Z"
+    },
+    {
+      "token": "16acf7f636b610d117bd1f7ba3eeb07be383310b5d0cfcbd152478c6a5b398a5",
+      "userId": "CB-ADMIN-01",
+      "role": "ADMIN",
+      "createdAt": "2026-09-03T09:17:34.077Z",
+      "expiresAt": "2026-09-04T09:17:34.077Z"
+    },
+    {
+      "token": "633484ccea3cdf73f8a66f3978a5632081de6566052148917a53e3089ce8efce",
+      "userId": "CB-ADMIN-01",
+      "role": "ADMIN",
+      "createdAt": "2026-09-03T09:17:48.251Z",
+      "expiresAt": "2026-09-04T09:17:48.251Z"
+    },
+    {
+      "token": "ce285e86b40e7ca2bca46c8a15b9269cbb9ae49542d7ce372aa2fb423811f144",
+      "userId": "CB-ADMIN-01",
+      "role": "ADMIN",
+      "createdAt": "2026-09-03T09:17:48.734Z",
+      "expiresAt": "2026-09-04T09:17:48.734Z"
+    },
+    {
+      "token": "5805937a6563fb91795333c3ec73d4b29b4cd5aa39ef4c77f251b27ec82ac2c3",
+      "userId": "CB-ADMIN-01",
+      "role": "ADMIN",
+      "createdAt": "2026-09-03T09:21:16.746Z",
+      "expiresAt": "2026-09-04T09:21:16.746Z"
+    },
+    {
+      "token": "328704b7e90da4729e289c88f8025577ffd18bd3775f6b2e8c3dbac559b1efa7",
+      "userId": "CB-ADMIN-01",
+      "role": "ADMIN",
+      "createdAt": "2026-09-03T09:51:17.475Z",
+      "expiresAt": "2026-09-04T09:51:17.475Z"
+    },
+    {
+      "token": "04cd03e3b89d48bbd0d84b1ab7df2dfd1b1d233727369f44327c39e4d15f2633",
+      "userId": "CB-ADMIN-01",
+      "role": "ADMIN",
+      "createdAt": "2026-09-03T09:56:35.210Z",
+      "expiresAt": "2026-09-04T09:56:35.210Z"
+    },
+    {
+      "token": "3baf26ed2e61bafb84b0b4986916a7ffd4ae459df9de31481a9454c67a0960e8",
+      "userId": "CB-ADMIN-01",
+      "role": "ADMIN",
+      "createdAt": "2026-09-03T09:56:40.067Z",
+      "expiresAt": "2026-09-04T09:56:40.067Z"
+    },
+    {
+      "token": "36b998edb439e5e86f58c8d8e0d9f11f3c835e926fcbfe8ebcfbd4e6f585af6a",
+      "userId": "CB-ADMIN-01",
+      "role": "ADMIN",
+      "createdAt": "2026-09-03T09:56:50.007Z",
+      "expiresAt": "2026-09-04T09:56:50.007Z"
+    },
+    {
+      "token": "30451d59b789907838c212aeb573425e873d3ce782b74dc3a58551bd7d0813ec",
+      "userId": "CB-ADMIN-01",
+      "role": "ADMIN",
+      "createdAt": "2026-09-03T10:03:29.209Z",
+      "expiresAt": "2026-09-04T10:03:29.209Z"
+    },
+    {
+      "token": "a931cf1441a8790948ac943f4a1c85a67fc227ae92856b7e4b9b8b880c5c490c",
+      "userId": "CB-ADMIN-01",
+      "role": "ADMIN",
+      "createdAt": "2026-09-03T10:06:34.108Z",
+      "expiresAt": "2026-09-04T10:06:34.108Z"
+    },
+    {
+      "token": "521a548ac6ad9ae1f409c565b96bede2de5f4d23f34309e4304c27f3b25b970e",
+      "userId": "CB-ADMIN-01",
+      "role": "ADMIN",
+      "createdAt": "2026-09-03T10:07:50.892Z",
+      "expiresAt": "2026-09-04T10:07:50.892Z"
+    },
+    {
+      "token": "41439b01303c113b6da5b6c92292d40f028810ea484aa0fdec3cbb6f26beacf0",
+      "userId": "CB-ADMIN-01",
+      "role": "ADMIN",
+      "createdAt": "2026-09-04T16:48:55.176Z",
+      "expiresAt": "2026-09-05T16:48:55.176Z"
+    },
+    {
+      "token": "008760273785cf80a1bf5c257d9b74702d33dcd64065de5a5d5981232e3ce5cd",
+      "userId": "CB-ADMIN-01",
+      "role": "ADMIN",
+      "createdAt": "2026-09-04T16:57:59.693Z",
+      "expiresAt": "2026-09-05T16:57:59.693Z"
+    },
+    {
+      "token": "2a064cbb0716b6e7fd16ba3a2156d05114f62645ed4a30ee1d42ae7ef126aeda",
+      "userId": "CB-ADMIN-01",
+      "role": "ADMIN",
+      "createdAt": "2026-09-04T16:58:11.097Z",
+      "expiresAt": "2026-09-05T16:58:11.097Z"
+    },
+    {
+      "token": "dcf7f6b7cab4edd4871b6818acfe213507e73afa4157314e9b1e5c030504ca80",
+      "userId": "CB-ADMIN-01",
+      "role": "ADMIN",
+      "createdAt": "2026-09-04T16:58:47.847Z",
+      "expiresAt": "2026-09-05T16:58:47.847Z"
+    },
+    {
+      "token": "c772145531e5f07c5b2706c00a5579d5c1d630a986186d4c13885bc41897f916",
+      "userId": "CB-ADMIN-01",
+      "role": "ADMIN",
+      "createdAt": "2026-09-04T17:01:38.168Z",
+      "expiresAt": "2026-09-05T17:01:38.168Z"
+    },
+    {
+      "token": "8317897148c3fc7ee0ee15e629c8d13f59d73f2ea5456f391d762e1089c5e554",
+      "userId": "CB-ADMIN-01",
+      "role": "ADMIN",
+      "createdAt": "2026-09-04T17:04:35.539Z",
+      "expiresAt": "2026-09-05T17:04:35.539Z"
+    },
+    {
+      "token": "dc6e8604b18c0fc298fbfe69a3782804a266a91a85ba5c0cad1525ea86947ad8",
+      "userId": "CB-ADMIN-01",
+      "role": "ADMIN",
+      "createdAt": "2026-09-04T17:04:58.019Z",
+      "expiresAt": "2026-09-05T17:04:58.019Z"
+    },
+    {
+      "token": "8d2de0eed746c366795ccb6090f267729444e4e7a60bab3769996c7d7072dd67",
+      "userId": "CB-ADMIN-01",
+      "role": "ADMIN",
+      "createdAt": "2026-09-04T17:05:42.730Z",
+      "expiresAt": "2026-09-05T17:05:42.730Z"
+    },
+    {
+      "token": "2ef19c214bf2638fefc99b68ca49c835bae7a0715a4aad5908e1ba259607416f",
+      "userId": "CB-ADMIN-01",
+      "role": "ADMIN",
+      "createdAt": "2026-09-04T17:07:14.548Z",
+      "expiresAt": "2026-09-05T17:07:14.548Z"
+    },
+    {
+      "token": "69f093ed59cff0379d196f19b61c15f3fb9714374f5cc9412a9f7a4a1c82ab37",
+      "userId": "CB-ADMIN-01",
+      "role": "ADMIN",
+      "createdAt": "2026-09-04T17:19:42.432Z",
+      "expiresAt": "2026-09-05T17:19:42.432Z"
+    },
+    {
+      "token": "3fd166ed1f5baf35f992337e53b1fabea948bd0287133647d0b376b62eefbcbd",
+      "userId": "CB-ADMIN-01",
+      "role": "ADMIN",
+      "createdAt": "2026-09-04T17:20:25.988Z",
+      "expiresAt": "2026-09-05T17:20:25.988Z"
+    },
+    {
+      "token": "0b62658951af1518fcc0465bd4f5ccef1182f91f746b68fae475b7752376399b",
+      "userId": "CB-ADMIN-01",
+      "role": "ADMIN",
+      "createdAt": "2026-09-04T18:09:55.742Z",
+      "expiresAt": "2026-09-05T18:09:55.742Z"
+    },
+    {
+      "token": "ef4d3b57cf574bb18d06cb21bd9abe24e2bdbc81f3db6f316d083e89e0ed57e8",
+      "userId": "CB-ADMIN-01",
+      "role": "ADMIN",
+      "createdAt": "2026-09-04T18:12:24.803Z",
+      "expiresAt": "2026-09-05T18:12:24.803Z"
+    }
+  ],
   "leads": [],
   "applications": [],
   "stageUpdates": [],
@@ -28,59 +442,598 @@
   "leadNotes": [],
   "auditLogs": [
     {
-      "id": "AUD-000005",
-      "actorId": "CB-ADMIN-01",
-      "actorName": "System Administrator",
-      "actorRole": "ADMIN",
-      "action": "USER_LOGOUT",
-      "entity": "User",
-      "entityId": "CB-ADMIN-01",
-      "timestamp": "2026-08-28T08:25:34.426Z",
-      "details": "ADMIN System Administrator logged out."
-    },
-    {
-      "id": "AUD-000004",
+      "id": "AUD-000108",
       "actorId": "CB-ADMIN-01",
       "actorName": "System Administrator",
       "actorRole": "ADMIN",
       "action": "USER_LOGIN",
       "entity": "User",
       "entityId": "CB-ADMIN-01",
-      "timestamp": "2026-08-28T08:18:10.796Z",
+      "timestamp": "2026-09-04T18:12:24.804Z",
       "details": "ADMIN System Administrator logged in."
     },
     {
-      "id": "AUD-000003",
+      "id": "AUD-000107",
       "actorId": "CB-ADMIN-01",
       "actorName": "System Administrator",
       "actorRole": "ADMIN",
-      "action": "USER_LOGOUT",
-      "entity": "User",
-      "entityId": "CB-ADMIN-01",
-      "timestamp": "2026-08-28T08:17:10.337Z",
-      "details": "ADMIN System Administrator logged out."
+      "action": "ASSOCIATE_UPDATED",
+      "entity": "Associate",
+      "entityId": "CB-1003",
+      "timestamp": "2026-09-04T18:10:57.761Z",
+      "details": "Admin updated Associate CB-1003 details/status."
     },
     {
-      "id": "AUD-000002",
+      "id": "AUD-000106",
+      "actorId": "CB-ADMIN-01",
+      "actorName": "System Administrator",
+      "actorRole": "ADMIN",
+      "action": "ASSOCIATE_UPDATED",
+      "entity": "Associate",
+      "entityId": "CB-1002",
+      "timestamp": "2026-09-04T18:10:52.019Z",
+      "details": "Admin updated Associate CB-1002 details/status."
+    },
+    {
+      "id": "AUD-000105",
+      "actorId": "CB-ADMIN-01",
+      "actorName": "System Administrator",
+      "actorRole": "ADMIN",
+      "action": "ASSOCIATE_UPDATED",
+      "entity": "Associate",
+      "entityId": "CB-1001",
+      "timestamp": "2026-09-04T18:10:47.780Z",
+      "details": "Admin updated Associate CB-1001 details/status."
+    },
+    {
+      "id": "AUD-000104",
       "actorId": "CB-ADMIN-01",
       "actorName": "System Administrator",
       "actorRole": "ADMIN",
       "action": "USER_LOGIN",
       "entity": "User",
       "entityId": "CB-ADMIN-01",
-      "timestamp": "2026-08-28T08:13:21.239Z",
+      "timestamp": "2026-09-04T18:09:55.742Z",
       "details": "ADMIN System Administrator logged in."
     },
     {
-      "id": "AUD-000001",
+      "id": "AUD-000103",
       "actorId": "CB-ADMIN-01",
       "actorName": "System Administrator",
       "actorRole": "ADMIN",
-      "action": "SYSTEM_INITIALIZATION",
-      "entity": "System",
-      "entityId": "CAPITABEE-CORE",
-      "timestamp": "2026-08-28T08:13:11.223Z",
-      "details": "Capitabee Financial Services CRM initialized with Administrator account."
+      "action": "USER_LOGIN",
+      "entity": "User",
+      "entityId": "CB-ADMIN-01",
+      "timestamp": "2026-09-04T17:20:25.989Z",
+      "details": "ADMIN System Administrator logged in."
+    },
+    {
+      "id": "AUD-000102",
+      "actorId": "CB-ADMIN-01",
+      "actorName": "System Administrator",
+      "actorRole": "ADMIN",
+      "action": "USER_LOGIN",
+      "entity": "User",
+      "entityId": "CB-ADMIN-01",
+      "timestamp": "2026-09-04T17:19:42.432Z",
+      "details": "ADMIN System Administrator logged in."
+    },
+    {
+      "id": "AUD-000101",
+      "actorId": "SYSTEM_WEB",
+      "actorName": "Public Website Intake",
+      "actorRole": "ADMIN",
+      "action": "WEBSITE_APPLICATION_SUBMITTED",
+      "entity": "Application",
+      "entityId": "APP-2026-000016",
+      "timestamp": "2026-09-04T17:07:15.263Z",
+      "details": "Loan application submitted from website by Pooja Hegde Test for ₹15,00,000 (Business Loan)."
+    },
+    {
+      "id": "AUD-000100",
+      "actorId": "CB-ADMIN-01",
+      "actorName": "System Administrator",
+      "actorRole": "ADMIN",
+      "action": "USER_LOGIN",
+      "entity": "User",
+      "entityId": "CB-ADMIN-01",
+      "timestamp": "2026-09-04T17:07:14.549Z",
+      "details": "ADMIN System Administrator logged in."
+    },
+    {
+      "id": "AUD-000099",
+      "actorId": "CB-ADMIN-01",
+      "actorName": "System Administrator",
+      "actorRole": "ADMIN",
+      "action": "USER_LOGIN",
+      "entity": "User",
+      "entityId": "CB-ADMIN-01",
+      "timestamp": "2026-09-04T17:05:42.730Z",
+      "details": "ADMIN System Administrator logged in."
+    },
+    {
+      "id": "AUD-000098",
+      "actorId": "SYSTEM_WEB",
+      "actorName": "Public Website Intake",
+      "actorRole": "ADMIN",
+      "action": "WEBSITE_APPLICATION_SUBMITTED",
+      "entity": "Application",
+      "entityId": "APP-2026-000015",
+      "timestamp": "2026-09-04T17:04:58.608Z",
+      "details": "Loan application submitted from website by Aarav Verma for ₹5,00,000 (Personal Loan)."
+    },
+    {
+      "id": "AUD-000097",
+      "actorId": "CB-ADMIN-01",
+      "actorName": "System Administrator",
+      "actorRole": "ADMIN",
+      "action": "USER_LOGIN",
+      "entity": "User",
+      "entityId": "CB-ADMIN-01",
+      "timestamp": "2026-09-04T17:04:58.019Z",
+      "details": "ADMIN System Administrator logged in."
+    },
+    {
+      "id": "AUD-000096",
+      "actorId": "CB-ADMIN-01",
+      "actorName": "System Administrator",
+      "actorRole": "ADMIN",
+      "action": "USER_LOGIN",
+      "entity": "User",
+      "entityId": "CB-ADMIN-01",
+      "timestamp": "2026-09-04T17:04:35.539Z",
+      "details": "ADMIN System Administrator logged in."
+    },
+    {
+      "id": "AUD-000095",
+      "actorId": "CB-ADMIN-01",
+      "actorName": "System Administrator",
+      "actorRole": "ADMIN",
+      "action": "USER_LOGIN",
+      "entity": "User",
+      "entityId": "CB-ADMIN-01",
+      "timestamp": "2026-09-04T17:01:38.168Z",
+      "details": "ADMIN System Administrator logged in."
+    },
+    {
+      "id": "AUD-000094",
+      "actorId": "CB-ADMIN-01",
+      "actorName": "System Administrator",
+      "actorRole": "ADMIN",
+      "action": "USER_LOGIN",
+      "entity": "User",
+      "entityId": "CB-ADMIN-01",
+      "timestamp": "2026-09-04T16:58:47.847Z",
+      "details": "ADMIN System Administrator logged in."
+    },
+    {
+      "id": "AUD-000093",
+      "actorId": "CB-ADMIN-01",
+      "actorName": "System Administrator",
+      "actorRole": "ADMIN",
+      "action": "USER_LOGIN",
+      "entity": "User",
+      "entityId": "CB-ADMIN-01",
+      "timestamp": "2026-09-04T16:58:11.097Z",
+      "details": "ADMIN System Administrator logged in."
+    },
+    {
+      "id": "AUD-000092",
+      "actorId": "CB-ADMIN-01",
+      "actorName": "System Administrator",
+      "actorRole": "ADMIN",
+      "action": "USER_LOGIN",
+      "entity": "User",
+      "entityId": "CB-ADMIN-01",
+      "timestamp": "2026-09-04T16:57:59.693Z",
+      "details": "ADMIN System Administrator logged in."
+    },
+    {
+      "id": "AUD-000091",
+      "actorId": "CB-ADMIN-01",
+      "actorName": "System Administrator",
+      "actorRole": "ADMIN",
+      "action": "USER_LOGIN",
+      "entity": "User",
+      "entityId": "CB-ADMIN-01",
+      "timestamp": "2026-09-04T16:48:55.176Z",
+      "details": "ADMIN System Administrator logged in."
+    },
+    {
+      "id": "AUD-000090",
+      "actorId": "CB-ADMIN-01",
+      "actorName": "System Administrator",
+      "actorRole": "ADMIN",
+      "action": "USER_LOGIN",
+      "entity": "User",
+      "entityId": "CB-ADMIN-01",
+      "timestamp": "2026-09-03T10:07:50.892Z",
+      "details": "ADMIN System Administrator logged in."
+    },
+    {
+      "id": "AUD-000089",
+      "actorId": "CB-ADMIN-01",
+      "actorName": "System Administrator",
+      "actorRole": "ADMIN",
+      "action": "USER_LOGIN",
+      "entity": "User",
+      "entityId": "CB-ADMIN-01",
+      "timestamp": "2026-09-03T10:06:34.108Z",
+      "details": "ADMIN System Administrator logged in."
+    },
+    {
+      "id": "AUD-000088",
+      "actorId": "CB-ADMIN-01",
+      "actorName": "System Administrator",
+      "actorRole": "ADMIN",
+      "action": "USER_LOGIN",
+      "entity": "User",
+      "entityId": "CB-ADMIN-01",
+      "timestamp": "2026-09-03T10:03:29.209Z",
+      "details": "ADMIN System Administrator logged in."
+    },
+    {
+      "id": "AUD-000087",
+      "actorId": "CB-ADMIN-01",
+      "actorName": "System Administrator",
+      "actorRole": "ADMIN",
+      "action": "USER_LOGIN",
+      "entity": "User",
+      "entityId": "CB-ADMIN-01",
+      "timestamp": "2026-09-03T09:56:50.008Z",
+      "details": "ADMIN System Administrator logged in."
+    },
+    {
+      "id": "AUD-000086",
+      "actorId": "CB-ADMIN-01",
+      "actorName": "System Administrator",
+      "actorRole": "ADMIN",
+      "action": "USER_LOGIN",
+      "entity": "User",
+      "entityId": "CB-ADMIN-01",
+      "timestamp": "2026-09-03T09:56:40.067Z",
+      "details": "ADMIN System Administrator logged in."
+    },
+    {
+      "id": "AUD-000085",
+      "actorId": "CB-ADMIN-01",
+      "actorName": "System Administrator",
+      "actorRole": "ADMIN",
+      "action": "USER_LOGIN",
+      "entity": "User",
+      "entityId": "CB-ADMIN-01",
+      "timestamp": "2026-09-03T09:56:35.210Z",
+      "details": "ADMIN System Administrator logged in."
+    },
+    {
+      "id": "AUD-000084",
+      "actorId": "CB-ADMIN-01",
+      "actorName": "System Administrator",
+      "actorRole": "ADMIN",
+      "action": "USER_LOGIN",
+      "entity": "User",
+      "entityId": "CB-ADMIN-01",
+      "timestamp": "2026-09-03T09:51:17.475Z",
+      "details": "ADMIN System Administrator logged in."
+    },
+    {
+      "id": "AUD-000083",
+      "actorId": "CB-ADMIN-01",
+      "actorName": "System Administrator",
+      "actorRole": "ADMIN",
+      "action": "USER_LOGIN",
+      "entity": "User",
+      "entityId": "CB-ADMIN-01",
+      "timestamp": "2026-09-03T09:21:16.746Z",
+      "details": "ADMIN System Administrator logged in."
+    },
+    {
+      "id": "AUD-000082",
+      "actorId": "CB-ADMIN-01",
+      "actorName": "System Administrator",
+      "actorRole": "ADMIN",
+      "action": "USER_LOGIN",
+      "entity": "User",
+      "entityId": "CB-ADMIN-01",
+      "timestamp": "2026-09-03T09:17:48.734Z",
+      "details": "ADMIN System Administrator logged in."
+    },
+    {
+      "id": "AUD-000081",
+      "actorId": "CB-ADMIN-01",
+      "actorName": "System Administrator",
+      "actorRole": "ADMIN",
+      "action": "USER_LOGIN",
+      "entity": "User",
+      "entityId": "CB-ADMIN-01",
+      "timestamp": "2026-09-03T09:17:48.252Z",
+      "details": "ADMIN System Administrator logged in."
+    },
+    {
+      "id": "AUD-000080",
+      "actorId": "CB-ADMIN-01",
+      "actorName": "System Administrator",
+      "actorRole": "ADMIN",
+      "action": "USER_LOGIN",
+      "entity": "User",
+      "entityId": "CB-ADMIN-01",
+      "timestamp": "2026-09-03T09:17:34.077Z",
+      "details": "ADMIN System Administrator logged in."
+    },
+    {
+      "id": "AUD-000079",
+      "actorId": "CB-ADMIN-01",
+      "actorName": "System Administrator",
+      "actorRole": "ADMIN",
+      "action": "USER_LOGIN",
+      "entity": "User",
+      "entityId": "CB-ADMIN-01",
+      "timestamp": "2026-09-03T09:14:20.376Z",
+      "details": "ADMIN System Administrator logged in."
+    },
+    {
+      "id": "AUD-000078",
+      "actorId": "CB-ADMIN-01",
+      "actorName": "System Administrator",
+      "actorRole": "ADMIN",
+      "action": "USER_LOGIN",
+      "entity": "User",
+      "entityId": "CB-ADMIN-01",
+      "timestamp": "2026-09-02T13:18:38.672Z",
+      "details": "ADMIN System Administrator logged in."
+    },
+    {
+      "id": "AUD-000077",
+      "actorId": "CB-ADMIN-01",
+      "actorName": "System Administrator",
+      "actorRole": "ADMIN",
+      "action": "USER_LOGIN",
+      "entity": "User",
+      "entityId": "CB-ADMIN-01",
+      "timestamp": "2026-09-02T12:39:28.396Z",
+      "details": "ADMIN System Administrator logged in."
+    },
+    {
+      "id": "AUD-000076",
+      "actorId": "CB-ADMIN-01",
+      "actorName": "System Administrator",
+      "actorRole": "ADMIN",
+      "action": "USER_LOGIN",
+      "entity": "User",
+      "entityId": "CB-ADMIN-01",
+      "timestamp": "2026-09-02T12:33:56.558Z",
+      "details": "ADMIN System Administrator logged in."
+    },
+    {
+      "id": "AUD-000075",
+      "actorId": "CB-ADMIN-01",
+      "actorName": "System Administrator",
+      "actorRole": "ADMIN",
+      "action": "USER_LOGOUT",
+      "entity": "User",
+      "entityId": "CB-ADMIN-01",
+      "timestamp": "2026-09-02T12:33:56.547Z",
+      "details": "ADMIN System Administrator logged out."
+    },
+    {
+      "id": "AUD-000074",
+      "actorId": "CB-ADMIN-01",
+      "actorName": "System Administrator",
+      "actorRole": "ADMIN",
+      "action": "USER_LOGIN",
+      "entity": "User",
+      "entityId": "CB-ADMIN-01",
+      "timestamp": "2026-09-02T12:33:56.033Z",
+      "details": "ADMIN System Administrator logged in."
+    },
+    {
+      "id": "AUD-000073",
+      "actorId": "SYSTEM_WEB",
+      "actorName": "Public Website Intake",
+      "actorRole": "ADMIN",
+      "action": "WEBSITE_APPLICATION_SUBMITTED",
+      "entity": "Application",
+      "entityId": "APP-2026-000014",
+      "timestamp": "2026-09-02T12:33:56.007Z",
+      "details": "Loan application submitted from website by Priya R. Verma for ₹55,00,000 (Home Loan)."
+    },
+    {
+      "id": "AUD-000072",
+      "actorId": "CB-ADMIN-01",
+      "actorName": "System Administrator",
+      "actorRole": "ADMIN",
+      "action": "USER_LOGIN",
+      "entity": "User",
+      "entityId": "CB-ADMIN-01",
+      "timestamp": "2026-09-02T12:32:45.915Z",
+      "details": "ADMIN System Administrator logged in."
+    },
+    {
+      "id": "AUD-000071",
+      "actorId": "CB-ADMIN-01",
+      "actorName": "System Administrator",
+      "actorRole": "ADMIN",
+      "action": "USER_LOGIN",
+      "entity": "User",
+      "entityId": "CB-ADMIN-01",
+      "timestamp": "2026-09-02T12:32:37.453Z",
+      "details": "ADMIN System Administrator logged in."
+    },
+    {
+      "id": "AUD-000070",
+      "actorId": "CB-ADMIN-01",
+      "actorName": "System Administrator",
+      "actorRole": "ADMIN",
+      "action": "USER_LOGIN",
+      "entity": "User",
+      "entityId": "CB-ADMIN-01",
+      "timestamp": "2026-09-02T12:32:28.055Z",
+      "details": "ADMIN System Administrator logged in."
+    },
+    {
+      "id": "AUD-000069",
+      "actorId": "SYSTEM_WEB",
+      "actorName": "Public Website Intake",
+      "actorRole": "ADMIN",
+      "action": "WEBSITE_APPLICATION_SUBMITTED",
+      "entity": "Application",
+      "entityId": "APP-2026-000013",
+      "timestamp": "2026-09-02T12:32:17.718Z",
+      "details": "Loan application submitted from website by Aarav K. Sharma for ₹35,00,000 (Business Loan)."
+    },
+    {
+      "id": "AUD-000068",
+      "actorId": "CB-ADMIN-01",
+      "actorName": "System Administrator",
+      "actorRole": "ADMIN",
+      "action": "USER_LOGIN",
+      "entity": "User",
+      "entityId": "CB-ADMIN-01",
+      "timestamp": "2026-09-02T12:28:07.267Z",
+      "details": "ADMIN System Administrator logged in."
+    },
+    {
+      "id": "AUD-000067",
+      "actorId": "CB-ADMIN-01",
+      "actorName": "System Administrator",
+      "actorRole": "ADMIN",
+      "action": "USER_LOGIN",
+      "entity": "User",
+      "entityId": "CB-ADMIN-01",
+      "timestamp": "2026-09-02T09:34:01.988Z",
+      "details": "ADMIN System Administrator logged in."
+    },
+    {
+      "id": "AUD-000066",
+      "actorId": "SYSTEM_WEB",
+      "actorName": "Public Website Intake",
+      "actorRole": "ADMIN",
+      "action": "WEBSITE_APPLICATION_SUBMITTED",
+      "entity": "Application",
+      "entityId": "APP-2026-000012",
+      "timestamp": "2026-09-02T09:34:01.976Z",
+      "details": "Loan application submitted from website by Pooja Deshmukh for ₹5,00,000 (Personal Loan)."
+    },
+    {
+      "id": "AUD-000065",
+      "actorId": "SYSTEM_WEB",
+      "actorName": "Public Website Intake",
+      "actorRole": "ADMIN",
+      "action": "WEBSITE_APPLICATION_SUBMITTED",
+      "entity": "Application",
+      "entityId": "APP-2026-000011",
+      "timestamp": "2026-09-02T09:34:01.775Z",
+      "details": "Loan application submitted from website by Pooja Deshmukh for ₹45,00,000 (Home Loan)."
+    },
+    {
+      "id": "AUD-000064",
+      "actorId": "CB-ADMIN-01",
+      "actorName": "System Administrator",
+      "actorRole": "ADMIN",
+      "action": "USER_LOGIN",
+      "entity": "User",
+      "entityId": "CB-ADMIN-01",
+      "timestamp": "2026-09-02T08:42:06.424Z",
+      "details": "ADMIN System Administrator logged in."
+    },
+    {
+      "id": "AUD-000063",
+      "actorId": "SYSTEM_WEB",
+      "actorName": "Public Website Intake",
+      "actorRole": "ADMIN",
+      "action": "WEBSITE_APPLICATION_SUBMITTED",
+      "entity": "Application",
+      "entityId": "APP-2026-000010",
+      "timestamp": "2026-09-02T08:42:06.412Z",
+      "details": "Loan application submitted from website by Vikram Sharma for ₹25,00,000 (Business Loan)."
+    },
+    {
+      "id": "AUD-000062",
+      "actorId": "SYSTEM_WEB",
+      "actorName": "Public Website Intake",
+      "actorRole": "ADMIN",
+      "action": "WEBSITE_APPLICATION_SUBMITTED",
+      "entity": "Application",
+      "entityId": "APP-2026-000009",
+      "timestamp": "2026-09-02T08:42:06.215Z",
+      "details": "Loan application submitted from website by Vikram Sharma for ₹50,00,000 (Home Loan)."
+    },
+    {
+      "id": "AUD-000061",
+      "actorId": "SYSTEM_WEB",
+      "actorName": "Public Website Intake",
+      "actorRole": "ADMIN",
+      "action": "WEBSITE_APPLICATION_SUBMITTED",
+      "entity": "Application",
+      "entityId": "APP-2026-000008",
+      "timestamp": "2026-09-01T07:52:19.389Z",
+      "details": "Loan application submitted from website by Rohan Deshmukh for ₹45,00,000 (Home Loan)."
+    },
+    {
+      "id": "AUD-000060",
+      "actorId": "CB-ADMIN-01",
+      "actorName": "System Administrator",
+      "actorRole": "ADMIN",
+      "action": "USER_LOGIN",
+      "entity": "User",
+      "entityId": "CB-ADMIN-01",
+      "timestamp": "2026-09-01T07:48:19.947Z",
+      "details": "ADMIN System Administrator logged in."
+    },
+    {
+      "id": "AUD-000059",
+      "actorId": "CB-ADMIN-01",
+      "actorName": "System Administrator",
+      "actorRole": "ADMIN",
+      "action": "USER_LOGIN",
+      "entity": "User",
+      "entityId": "CB-ADMIN-01",
+      "timestamp": "2026-09-01T07:47:39.278Z",
+      "details": "ADMIN System Administrator logged in."
+    },
+    {
+      "id": "AUD-000058",
+      "actorId": "CB-ADMIN-01",
+      "actorName": "System Administrator",
+      "actorRole": "ADMIN",
+      "action": "USER_LOGIN",
+      "entity": "User",
+      "entityId": "CB-ADMIN-01",
+      "timestamp": "2026-09-01T07:47:09.888Z",
+      "details": "ADMIN System Administrator logged in."
+    },
+    {
+      "id": "AUD-000057",
+      "actorId": "SYSTEM_WEB",
+      "actorName": "Public Website Intake",
+      "actorRole": "ADMIN",
+      "action": "WEBSITE_APPLICATION_SUBMITTED",
+      "entity": "Application",
+      "entityId": "APP-2026-000007",
+      "timestamp": "2026-09-01T07:46:35.827Z",
+      "details": "Loan application submitted from website by Aditya Tiwari for ₹25,00,000 (Personal Loan)."
+    },
+    {
+      "id": "AUD-000056",
+      "actorId": "SYSTEM_WEB",
+      "actorName": "Public Website Intake",
+      "actorRole": "ADMIN",
+      "action": "WEBSITE_APPLICATION_SUBMITTED",
+      "entity": "Application",
+      "entityId": "APP-2026-000006",
+      "timestamp": "2026-09-01T07:46:35.318Z",
+      "details": "Loan application submitted from website by Aditya Tiwari for ₹50,00,000 (Business Loan)."
+    },
+    {
+      "id": "AUD-000055",
+      "actorId": "CB-ADMIN-01",
+      "actorName": "System Administrator",
+      "actorRole": "ADMIN",
+      "action": "USER_LOGIN",
+      "entity": "User",
+      "entityId": "CB-ADMIN-01",
+      "timestamp": "2026-09-01T07:29:06.266Z",
+      "details": "ADMIN System Administrator logged in."
     }
   ],
   "cibilChecks": [],
@@ -465,10 +1418,17 @@
     "stuckApplicationDays": 5
   },
   "counters": {
-    "associateSeq": 1000,
-    "leadSeq": 0,
-    "applicationSeq": 0,
+    "associateSeq": 1003,
+    "leadSeq": 16,
+    "applicationSeq": 16,
     "documentSeq": 0,
-    "auditSeq": 5
-  }
+    "auditSeq": 108
+  },
+  "reviews": [],
+  "customers": [],
+  "targets": [],
+  "documentRecords": [],
+  "stageUpdateLogs": [],
+  "notificationLogs": [],
+  "customerPortalAccounts": []
 }

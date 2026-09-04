@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
+import { ShieldAlert } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { Navbar } from './components/layout/Navbar';
 import { Sidebar } from './components/layout/Sidebar';
@@ -13,13 +14,19 @@ import { CapitabeeLogo } from './components/common/CapitabeeLogo';
 // Views
 import { AdminDashboardView } from './views/AdminDashboardView';
 import { AssociateDashboardView } from './views/AssociateDashboardView';
+import { PartnerDashboardView } from './views/PartnerDashboardView';
 import { LeadsView } from './views/LeadsView';
 import { ApplicationsView } from './views/ApplicationsView';
+import { CustomersView } from './views/CustomersView';
+import { PartnersView } from './views/PartnersView';
 import { AssociatesView } from './views/AssociatesView';
+import { TargetsView } from './views/TargetsView';
+import { AssignmentsView } from './views/AssignmentsView';
 import { FollowUpsView } from './views/FollowUpsView';
 import { DocumentsView } from './views/DocumentsView';
 import { CibilView } from './views/CibilView';
 import { ChampionsBoardView } from './views/ChampionsBoardView';
+import { ReviewsView } from './views/ReviewsView';
 import { ReportsView } from './views/ReportsView';
 import { AnalyticsView } from './views/AnalyticsView';
 import { SettingsView } from './views/SettingsView';
@@ -96,6 +103,8 @@ const AppContent: React.FC = () => {
   useEffect(() => {
     if (role === 'ADMIN') {
       setCurrentView('admin-dashboard');
+    } else if (role === 'PARTNER') {
+      setCurrentView('partner-dashboard');
     } else if (role === 'ASSOCIATE') {
       setCurrentView('associate-dashboard');
     }
@@ -115,6 +124,35 @@ const AppContent: React.FC = () => {
   // If not logged in, show Login Screen
   if (!user) {
     return <LoginView />;
+  }
+
+  // Security Check: Customer accounts are blocked from the Internal CRM Portal
+  if (role === 'CUSTOMER') {
+    return (
+      <div className="min-h-screen bg-[#FAF9F6] flex flex-col items-center justify-center p-6 text-center">
+        <div className="max-w-md w-full bg-white p-8 rounded-2xl border border-rose-200 shadow-xl space-y-4">
+          <div className="w-12 h-12 bg-rose-50 text-rose-600 rounded-full flex items-center justify-center mx-auto border border-rose-200">
+            <ShieldAlert className="w-6 h-6" />
+          </div>
+          <h2 className="serif-display text-2xl text-[#121212] font-semibold">
+            Access Denied: Internal CRM Portal
+          </h2>
+          <p className="text-xs text-[#5A5854] leading-relaxed">
+            Customer accounts are not authorized to access this internal financial management system.
+            Borrowers can track their 12-stage loan progress, status, and documents from the Customer Portal on the main Capitabee website.
+          </p>
+          <div className="pt-3">
+            <button
+              type="button"
+              onClick={() => logout()}
+              className="w-full py-2.5 px-4 bg-[#121212] text-white text-xs font-medium rounded-full hover:bg-[#262626] transition-colors cursor-pointer"
+            >
+              Return to CRM Login
+            </button>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   // Handle Converting a Lead into an Application
@@ -208,11 +246,27 @@ const AppContent: React.FC = () => {
                 />
               )}
 
+              {currentView === 'admin-customers' && (
+                <CustomersView key={refreshKey} />
+              )}
+
               {currentView === 'admin-associates' && (
                 <AssociatesView
                   key={refreshKey}
                   onOpenNewAssociate={() => setIsAssociateModalOpen(true)}
                 />
+              )}
+
+              {currentView === 'admin-partners' && (
+                <PartnersView key={refreshKey} />
+              )}
+
+              {currentView === 'admin-targets' && (
+                <TargetsView key={refreshKey} />
+              )}
+
+              {currentView === 'admin-assignments' && (
+                <AssignmentsView key={refreshKey} />
               )}
 
               {currentView === 'admin-followups' && (
@@ -231,6 +285,10 @@ const AppContent: React.FC = () => {
                 <ChampionsBoardView key={refreshKey} />
               )}
 
+              {currentView === 'admin-reviews' && (
+                <ReviewsView key={refreshKey} />
+              )}
+
               {currentView === 'admin-reports' && (
                 <ReportsView key={refreshKey} />
               )}
@@ -245,6 +303,73 @@ const AppContent: React.FC = () => {
 
               {currentView === 'admin-audit' && (
                 <AuditLogsView key={refreshKey} />
+              )}
+            </>
+          )}
+
+          {/* Partner Views */}
+          {role === 'PARTNER' && (
+            <>
+              {currentView === 'partner-dashboard' && (
+                <PartnerDashboardView
+                  key={refreshKey}
+                  onNavigate={setCurrentView}
+                  onOpenNewLead={() => {
+                    setSelectedLeadForEdit(null);
+                    setIsLeadModalOpen(true);
+                  }}
+                  onOpenNewApp={() => {
+                    setPrefillFromLead(null);
+                    setSelectedAppForEdit(null);
+                    setIsAppModalOpen(true);
+                  }}
+                  onSelectApp={app => setSelectedAppForDetail(app)}
+                />
+              )}
+
+              {currentView === 'partner-customers' && (
+                <CustomersView key={refreshKey} />
+              )}
+
+              {currentView === 'partner-applications' && (
+                <ApplicationsView
+                  key={refreshKey}
+                  onOpenNewApp={() => {
+                    setPrefillFromLead(null);
+                    setSelectedAppForEdit(null);
+                    setIsAppModalOpen(true);
+                  }}
+                  onSelectApp={app => setSelectedAppForDetail(app)}
+                />
+              )}
+
+              {currentView === 'partner-leads' && (
+                <LeadsView
+                  key={refreshKey}
+                  onOpenNewLead={() => {
+                    setSelectedLeadForEdit(null);
+                    setIsLeadModalOpen(true);
+                  }}
+                  onSelectLead={lead => setSelectedLeadForDetail(lead)}
+                  onConvertToApplication={handleConvertToApplication}
+                  onAssignLead={lead => setSelectedLeadForAssign(lead)}
+                />
+              )}
+
+              {currentView === 'partner-targets' && (
+                <TargetsView key={refreshKey} />
+              )}
+
+              {currentView === 'partner-reviews' && (
+                <ReviewsView key={refreshKey} />
+              )}
+
+              {currentView === 'partner-documents' && (
+                <DocumentsView key={refreshKey} />
+              )}
+
+              {currentView === 'partner-settings' && (
+                <SettingsView key={refreshKey} />
               )}
             </>
           )}
@@ -295,6 +420,14 @@ const AppContent: React.FC = () => {
                 />
               )}
 
+              {currentView === 'associate-customers' && (
+                <CustomersView key={refreshKey} />
+              )}
+
+              {currentView === 'associate-targets' && (
+                <TargetsView key={refreshKey} />
+              )}
+
               {currentView === 'associate-followups' && (
                 <FollowUpsView key={refreshKey} />
               )}
@@ -309,6 +442,10 @@ const AppContent: React.FC = () => {
 
               {currentView === 'associate-champions' && (
                 <ChampionsBoardView key={refreshKey} />
+              )}
+
+              {currentView === 'associate-reviews' && (
+                <ReviewsView key={refreshKey} />
               )}
 
               {currentView === 'associate-settings' && (
@@ -396,6 +533,7 @@ const AppContent: React.FC = () => {
         isOpen={!!selectedAppForDetail}
         onClose={() => setSelectedAppForDetail(null)}
         application={selectedAppForDetail}
+        applicationId={selectedAppForDetail?.id || null}
         onUpdateStage={app => {
           setSelectedAppForStage(app);
         }}

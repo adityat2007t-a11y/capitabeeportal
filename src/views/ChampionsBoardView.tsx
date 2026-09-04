@@ -19,15 +19,15 @@ export const ChampionsBoardView: React.FC = () => {
       setLoading(true);
       try {
         const [assocRes, appRes, leadRes] = await Promise.all([
-          api.getAssociates(),
-          api.getApplications({ limit: 1000 }),
-          api.getLeads({ limit: 1000 }),
+          api.getAssociates().catch(() => ({ associates: [] })),
+          api.getApplications({ limit: 1000 }).catch(() => ({ applications: [] })),
+          api.getLeads({ limit: 1000 }).catch(() => ({ leads: [] })),
         ]);
         setAssociates(assocRes.associates || []);
         setApps(appRes.applications || []);
         setLeads(leadRes.leads || []);
       } catch (err: any) {
-        console.error('Champions board error:', err);
+        console.warn('Champions board notice:', err?.message || err);
       } finally {
         setLoading(false);
       }
@@ -37,24 +37,25 @@ export const ChampionsBoardView: React.FC = () => {
 
   // Compute performance per associate
   const performanceList = associates.map(assoc => {
+    const stats = (assoc as any).stats;
     const assocApps = apps.filter(a => a.assignedAssociateId === assoc.id);
     const assocLeads = leads.filter(l => l.assignedAssociateId === assoc.id);
 
-    const totalSanction = assocApps.reduce((acc, a) => acc + (a.sanctionAmount || 0), 0);
-    const totalDisbursed = assocApps.reduce((acc, a) => acc + (a.disbursementAmount || 0), 0);
-    const convertedLeads = assocLeads.filter(
+    const totalSanction = stats?.totalLoanValue ?? assocApps.reduce((acc, a) => acc + (a.sanctionAmount || 0), 0);
+    const totalDisbursed = stats?.disbursedAmount ?? assocApps.reduce((acc, a) => acc + (a.disbursementAmount || 0), 0);
+    const convertedLeads = stats?.disbursements ?? assocLeads.filter(
       l => l.leadStatus === 'Application In Progress' || l.leadStatus === 'Sanctioned' || l.leadStatus === 'Disbursed'
     ).length;
 
-    const target = assoc.monthlyTarget || 2500000;
-    const achievementPct = target > 0 ? Math.round((totalDisbursed / target) * 100) : 0;
+    const target = stats?.target || assoc.monthlyTarget || 2500000;
+    const achievementPct = stats?.achievementPct ?? (target > 0 ? Math.round((totalDisbursed / target) * 100) : 0);
 
     return {
       ...assoc,
       totalSanction,
       totalDisbursed,
       convertedLeads,
-      totalAssignedLeads: assocLeads.length,
+      totalAssignedLeads: stats?.totalLeads ?? assocLeads.length,
       achievementPct,
     };
   });

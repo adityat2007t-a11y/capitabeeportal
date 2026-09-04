@@ -106,18 +106,18 @@ export const LENDING_PARTNERS: LendingPartner[] = [
 ];
 
 export const LOAN_STAGES = [
-  { number: 1, name: 'Inquiry', description: 'Initial customer enquiry and loan requirement assessment' },
-  { number: 2, name: 'Application', description: 'Detailed application form and applicant profiling' },
-  { number: 3, name: 'Documentation', description: 'Collection and verification of KYC, income, and banking documents' },
-  { number: 4, name: 'Login / Customer Verification', description: 'Bank/NBFC login file creation and FCU residence/office verification' },
-  { number: 5, name: 'Credit Assessment', description: 'Credit underwriting, eligibility calculation & bureau evaluation' },
-  { number: 6, name: 'In-Principle Sanction', description: 'Conditional sanction letter issuance by lending partner' },
-  { number: 7, name: 'Legal', description: 'Title search report (TSR) and property legal clearance' },
-  { number: 8, name: 'Technical', description: 'Property valuation and physical technical site inspection' },
-  { number: 9, name: 'Final Sanction', description: 'Lender credit committee final sanction and term sign-off' },
-  { number: 10, name: 'OTC (Over The Counter)', description: 'Submission of Over-The-Counter compliance and loan agreement execution' },
-  { number: 11, name: 'Disbursement', description: 'Loan amount disbursed to applicant or seller account' },
-  { number: 12, name: 'PDD (Post-Disbursement)', description: 'Collection of original property deeds, PDC/NACH & final compliance' },
+  { number: 1, name: 'Inquiry & Eligibility Check', description: 'Initial customer enquiry and loan eligibility assessment' },
+  { number: 2, name: 'Application Form & File Login', description: 'Detailed application form and applicant profiling' },
+  { number: 3, name: 'Document Collection & Verification', description: 'Collection and verification of KYC, income, and banking documents' },
+  { number: 4, name: 'Multi-Bank Evaluation & Login', description: 'Bank/NBFC login file creation and FCU residence/office verification' },
+  { number: 5, name: 'Bank Credit & Risk Assessment', description: 'Credit underwriting, eligibility calculation & bureau evaluation' },
+  { number: 6, name: 'In-Principle Sanction Letter', description: 'Conditional sanction letter issuance by lending partner' },
+  { number: 7, name: 'Legal Vetting & Title Search', description: 'Title search report (TSR) and property legal clearance' },
+  { number: 8, name: 'Technical Valuation & Property Inspection', description: 'Property valuation and physical technical site inspection' },
+  { number: 9, name: 'Final Sanction & Loan Offer', description: 'Lender credit committee final sanction and term sign-off' },
+  { number: 10, name: 'One-Time Condition (OTC) Clearance', description: 'Submission of Over-The-Counter compliance and loan agreement execution' },
+  { number: 11, name: 'Loan Agreement Signing & Disbursement', description: 'Loan amount disbursed to applicant or seller account' },
+  { number: 12, name: 'Post-Disbursement Documentation (PDD)', description: 'Collection of original property deeds, PDC/NACH & final compliance' },
 ];
 
 export const STAGES_12 = LOAN_STAGES;
