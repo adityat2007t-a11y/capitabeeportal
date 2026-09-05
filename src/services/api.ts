@@ -259,15 +259,7 @@ export const api = {
     const res = await fetch(`${BASE_URL}/applications${query}`, {
       headers: getAuthHeaders(),
     });
-    const data = await handleResponse<{ applications: Application[] }>(res);
-    const apiFound = Boolean(data?.applications?.some(a => a.id === 'APP-2026-000014'));
-    console.log('[DIAGNOSTIC TRACE] Layer 1 (/api/applications response) & Layer 2 (api.ts mapping):', {
-      API_FOUND: apiFound,
-      MAPPED_FOUND: apiFound,
-      targetId: 'APP-2026-000014',
-      totalApplications: data?.applications?.length || 0,
-    });
-    return data;
+    return handleResponse<{ applications: Application[] }>(res);
   },
 
   async submitWebsiteLead(leadData: any): Promise<{ success: boolean; leadId: string; message: string }> {

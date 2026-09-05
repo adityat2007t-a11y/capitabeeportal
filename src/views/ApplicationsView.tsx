@@ -115,14 +115,6 @@ export const ApplicationsView: React.FC<ApplicationsViewProps> = ({
       const serverApps = res?.applications || [];
       const ids = serverApps.map(a => a.id);
 
-      const stateLoadedFound = serverApps.some(a => a.id === 'APP-2026-000014');
-      console.log('[DIAGNOSTIC TRACE] Layer 3 (ApplicationsView state after loading):', {
-        STATE_LOADED_FOUND: stateLoadedFound,
-        targetId: 'APP-2026-000014',
-        totalAppsLoaded: serverApps.length,
-        loadedIds: ids,
-      });
-
       setDiagnostic({
         rowsCount: serverApps.length,
         queryError: null,
@@ -190,28 +182,6 @@ export const ApplicationsView: React.FC<ApplicationsViewProps> = ({
       if (!match) return false;
     }
     return true;
-  });
-
-  const targetInApps = apps.some(a => a.id === 'APP-2026-000014');
-  const targetInFiltered = filteredApps.some(a => a.id === 'APP-2026-000014');
-  // Since ApplicationsView renders the entire filteredApps list directly without page slicing:
-  const targetInPagination = targetInFiltered;
-  const targetInRendered = targetInFiltered;
-
-  console.log('[DIAGNOSTIC TRACE] Layer 4, 5, 6 (ApplicationsView Pipeline Diagnostic):', {
-    targetId: 'APP-2026-000014',
-    API_FOUND: targetInApps,
-    MAPPED_FOUND: targetInApps,
-    AFTER_FILTER_FOUND: targetInFiltered,
-    AFTER_PAGINATION_FOUND: targetInPagination,
-    RENDERED_FOUND: targetInRendered,
-    activeFilters: {
-      search,
-      stageFilter,
-      statusFilter,
-      productFilter,
-    },
-    totalFiltered: filteredApps.length,
   });
 
   const handleExportCSV = () => {

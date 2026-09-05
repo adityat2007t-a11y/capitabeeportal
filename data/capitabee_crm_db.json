@@ -14,8 +14,8 @@
       "updatedAt": "2026-08-28T08:13:11.223Z",
       "passwordHash": "69a48ffde0c4d5469b6ed3173cba050400429036ffc37041ca59357557f1a3f42f528b5ba1d1ad736203f620b14f805267388ff6bb9a3913a37d86003ad284e0",
       "salt": "e61f206e862d5abb51bf167fc848e571",
-      "lastLogin": "2026-09-04T18:12:24.803Z",
-      "sessionStartedAt": "2026-09-04T18:12:24.803Z",
+      "lastLogin": "2026-09-05T18:28:52.102Z",
+      "sessionStartedAt": "2026-09-05T18:28:52.102Z",
       "lastLogout": "2026-09-02T12:33:56.547Z"
     },
     {
@@ -432,6 +432,27 @@
       "role": "ADMIN",
       "createdAt": "2026-09-04T18:12:24.803Z",
       "expiresAt": "2026-09-05T18:12:24.803Z"
+    },
+    {
+      "token": "f095016e930b0dfaa0222b19bd3626d58f429044270359270ba793cf610ee187",
+      "userId": "CB-ADMIN-01",
+      "role": "ADMIN",
+      "createdAt": "2026-09-05T05:51:39.004Z",
+      "expiresAt": "2026-09-06T05:51:39.004Z"
+    },
+    {
+      "token": "1a18943c3d1fa6166621f6afc8b49e1c5fe8fc53051ca8a0103aa0e9bc247609",
+      "userId": "CB-ADMIN-01",
+      "role": "ADMIN",
+      "createdAt": "2026-09-05T05:52:18.035Z",
+      "expiresAt": "2026-09-06T05:52:18.035Z"
+    },
+    {
+      "token": "16eedcf8ac670e47da0fd08e26fe06ee8146506f8c5ef4ad2bd362e333c89a45",
+      "userId": "CB-ADMIN-01",
+      "role": "ADMIN",
+      "createdAt": "2026-09-05T18:28:52.102Z",
+      "expiresAt": "2026-09-06T18:28:52.102Z"
     }
   ],
   "leads": [],
@@ -441,6 +462,39 @@
   "followUps": [],
   "leadNotes": [],
   "auditLogs": [
+    {
+      "id": "AUD-000111",
+      "actorId": "CB-ADMIN-01",
+      "actorName": "System Administrator",
+      "actorRole": "ADMIN",
+      "action": "USER_LOGIN",
+      "entity": "User",
+      "entityId": "CB-ADMIN-01",
+      "timestamp": "2026-09-05T18:28:52.102Z",
+      "details": "ADMIN System Administrator logged in."
+    },
+    {
+      "id": "AUD-000110",
+      "actorId": "CB-ADMIN-01",
+      "actorName": "System Administrator",
+      "actorRole": "ADMIN",
+      "action": "USER_LOGIN",
+      "entity": "User",
+      "entityId": "CB-ADMIN-01",
+      "timestamp": "2026-09-05T05:52:18.035Z",
+      "details": "ADMIN System Administrator logged in."
+    },
+    {
+      "id": "AUD-000109",
+      "actorId": "CB-ADMIN-01",
+      "actorName": "System Administrator",
+      "actorRole": "ADMIN",
+      "action": "USER_LOGIN",
+      "entity": "User",
+      "entityId": "CB-ADMIN-01",
+      "timestamp": "2026-09-05T05:51:39.004Z",
+      "details": "ADMIN System Administrator logged in."
+    },
     {
       "id": "AUD-000108",
       "actorId": "CB-ADMIN-01",
@@ -1422,7 +1476,7 @@
     "leadSeq": 16,
     "applicationSeq": 16,
     "documentSeq": 0,
-    "auditSeq": 108
+    "auditSeq": 111
   },
   "reviews": [],
   "customers": [],
