@@ -18,6 +18,8 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { Lead, Application, Customer, User } from '../types';
+import { supabaseService } from '../services/supabaseService';
+import { supabase, isSupabaseConfigured } from '../lib/supabase';
 
 export const AssignmentsView: React.FC = () => {
   const { role } = useAuth();
@@ -40,20 +42,41 @@ export const AssignmentsView: React.FC = () => {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const token = localStorage.getItem('capitabee_auth_token');
-      const [leadsRes, appsRes, custsRes, assocRes, partRes] = await Promise.all([
-        fetch('/api/leads', { headers: { Authorization: `Bearer ${token}` } }),
-        fetch('/api/applications', { headers: { Authorization: `Bearer ${token}` } }),
-        fetch('/api/customers', { headers: { Authorization: `Bearer ${token}` } }),
-        fetch('/api/associates', { headers: { Authorization: `Bearer ${token}` } }),
-        fetch('/api/partners', { headers: { Authorization: `Bearer ${token}` } }),
+
+      // Direct Supabase calls
+      if (isSupabaseConfigured()) {
+        try {
+          const [leadsData, appsData, custsData, assocData] = await Promise.all([
+            supabaseService.getLeads(),
+            supabaseService.getApplications(),
+            supabaseService.getCustomers(),
+            supabaseService.getAssociates(),
+          ]);
+
+          setLeads(leadsData);
+          setApplications(appsData);
+          setCustomers(custsData);
+          setAssociates(assocData);
+          setPartners(assocData.filter(a => (a as any).partnerType || a.department === 'Partner Network'));
+          setLoading(false);
+          return;
+        } catch (sbErr) {
+          console.warn('Supabase assignments data fetch notice:', sbErr);
+        }
+      }
+
+      const [leadsRes, appsRes, custsRes, assocRes] = await Promise.all([
+        api.getLeads(),
+        api.getApplications(),
+        api.getCustomers(),
+        api.getAssociates(),
       ]);
 
-      if (leadsRes.ok) setLeads((await leadsRes.json()).leads || []);
-      if (appsRes.ok) setApplications((await appsRes.json()).applications || []);
-      if (custsRes.ok) setCustomers((await custsRes.json()).customers || []);
-      if (assocRes.ok) setAssociates((await assocRes.json()).associates || []);
-      if (partRes.ok) setPartners((await partRes.json()).partners || []);
+      setLeads(leadsRes.leads || []);
+      setApplications(appsRes.applications || []);
+      setCustomers(custsRes.customers || []);
+      setAssociates(assocRes.associates || []);
+      setPartners((assocRes.associates || []).filter(a => (a as any).partnerType || a.department === 'Partner Network'));
     } catch (err) {
       console.error('Error fetching assignment data:', err);
     } finally {
@@ -88,26 +111,63 @@ export const AssignmentsView: React.FC = () => {
 
     setAssigning(true);
     setStatusMsg(null);
-    const token = localStorage.getItem('capitabee_auth_token');
 
     try {
-      const res = await fetch('/api/assignments/bulk', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          entityType: activeTab,
-          entityIds: selectedIds,
-          assignedAssociateId: targetAssociateId || null,
-          assignedPartnerId: targetPartnerId || null,
-        }),
-      });
+      if (isSupabaseConfigured()) {
+        try {
+          const assoc = associates.find(a => a.id === targetAssociateId);
+          if (activeTab === 'leads') {
+            for (const id of selectedIds) {
+              await supabaseService.updateLead(id, {
+                assignedAssociateId: targetAssociateId || undefined,
+                assignedAssociateName: assoc?.name || undefined,
+              });
+            }
+          } else if (activeTab === 'applications') {
+            for (const id of selectedIds) {
+              await supabaseService.updateApplication(id, {
+                assignedAssociateId: targetAssociateId || undefined,
+                assignedAssociateName: assoc?.name || undefined,
+              });
+            }
+          } else if (activeTab === 'customers') {
+            for (const id of selectedIds) {
+              await supabase
+                .from('customers')
+                .update({
+                  assigned_associate_id: targetAssociateId || null,
+                  assigned_associate_name: assoc?.name || null,
+                })
+                .eq('id', id);
+            }
+          }
 
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || 'Assignment failed');
+          setStatusMsg({
+            type: 'success',
+            text: `Successfully updated assignments for ${selectedIds.length} ${activeTab}.`,
+          });
+          setSelectedIds([]);
+          fetchData();
+          setAssigning(false);
+          return;
+        } catch (sbErr: any) {
+          console.warn('Supabase bulk assign notice:', sbErr);
+        }
+      }
+
+      // Perform client-side / Supabase bulk assignment
+      for (const id of selectedIds) {
+        if (activeTab === 'leads') {
+          await api.updateLead(id, {
+            assignedAssociateId: targetAssociateId || undefined,
+            assignedAssociateName: targetAssoc?.name || undefined,
+          });
+        } else if (activeTab === 'applications') {
+          await api.updateApplication(id, {
+            assignedAssociateId: targetAssociateId || undefined,
+            assignedAssociateName: targetAssoc?.name || undefined,
+          });
+        }
       }
 
       setStatusMsg({

@@ -27,6 +27,9 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { LOAN_STAGES } from '../config/brand';
 import { Application, DocumentRecord, InternalMessage, Review } from '../types';
+import { supabaseService } from '../services/supabaseService';
+import { isSupabaseConfigured } from '../lib/supabase';
+import { api } from '../services/api';
 
 export const CustomerPortalView: React.FC = () => {
   const { user } = useAuth();
@@ -52,19 +55,71 @@ export const CustomerPortalView: React.FC = () => {
   const fetchPortalData = async () => {
     try {
       setRefreshing(true);
-      const token = localStorage.getItem('capitabee_auth_token');
-      const res = await fetch('/api/customer/portal', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setApplications(data.applications || []);
-        setDocuments(data.documents || []);
-        setMessages(data.messages || []);
-        setReviews(data.reviews || []);
-        if (data.applications && data.applications.length > 0 && !selectedAppId) {
-          setSelectedAppId(data.applications[0].id);
+
+      // Direct Supabase queries
+      if (isSupabaseConfigured() && user) {
+        try {
+          const userPhone = (user.mobile || '').replace(/\D/g, '').slice(-10);
+          const userEmail = (user.email || '').toLowerCase().trim();
+
+          const allApps = await supabaseService.getApplications();
+          const userApps = allApps.filter(a => {
+            const aPhone = (a.customerPhone || '').replace(/\D/g, '').slice(-10);
+            const aEmail = (a.customerEmail || '').toLowerCase().trim();
+            return (
+              a.customerId === user.id ||
+              (userPhone && aPhone === userPhone) ||
+              (userEmail && aEmail === userEmail)
+            );
+          });
+
+          setApplications(userApps);
+          if (userApps.length > 0 && !selectedAppId) {
+            setSelectedAppId(userApps[0].id);
+          }
+
+          const targetApp = userApps.find(a => a.id === selectedAppId) || userApps[0];
+          if (targetApp) {
+            const appDocs = await supabaseService.getDocuments(targetApp.id);
+            setDocuments(appDocs);
+          }
+
+          const userMessages = await supabaseService.getMessages();
+          setMessages(userMessages.filter(m => m.recipientId === user.id || m.senderId === user.id));
+
+          const appReviews = await supabaseService.getReviews();
+          setReviews(appReviews as any);
+
+          setLoading(false);
+          setRefreshing(false);
+          return;
+        } catch (sbErr) {
+          console.warn('Supabase customer portal fetch notice:', sbErr);
         }
+      }
+
+      // Client fallback via api service
+      const [appsRes, docsRes, msgsRes, revsRes] = await Promise.all([
+        api.getApplications(),
+        api.getDocuments(),
+        api.getMessages(),
+        api.getReviews(),
+      ]);
+
+      const myPhone = user?.phone || user?.mobile;
+      const myEmail = user?.email;
+      const myApps = (appsRes.applications || []).filter(
+        a => (user?.id && (a.customerId === user.id || a.id === user.id)) ||
+             (myPhone && (a.customerPhone === myPhone || (a as any).mobile === myPhone)) ||
+             (myEmail && (a.customerEmail === myEmail || a.email === myEmail))
+      );
+
+      setApplications(myApps);
+      setDocuments(docsRes.documents || []);
+      setMessages(msgsRes.messages || []);
+      setReviews(revsRes.reviews || []);
+      if (myApps.length > 0 && !selectedAppId) {
+        setSelectedAppId(myApps[0].id);
       }
     } catch (err) {
       console.error('Error loading customer portal data:', err);
@@ -78,7 +133,7 @@ export const CustomerPortalView: React.FC = () => {
     fetchPortalData();
     const interval = setInterval(fetchPortalData, 15000); // 15-second polling for live status
     return () => clearInterval(interval);
-  }, []);
+  }, [user]);
 
   const currentApp = applications.find(a => a.id === selectedAppId) || applications[0];
 
@@ -88,25 +143,15 @@ export const CustomerPortalView: React.FC = () => {
 
     setSendingMessage(true);
     try {
-      const token = localStorage.getItem('capitabee_auth_token');
-      const res = await fetch('/api/messages', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          applicationId: currentApp.id,
-          message: newMessage.trim(),
-          recipientId: currentApp.assignedAssociateId || 'CB-ADMIN-01',
-          recipientName: currentApp.assignedAssociateName || 'Loan Executive',
-        }),
+      await supabaseService.sendMessage({
+        applicationId: currentApp.id,
+        senderId: user?.id || 'CB-CUST',
+        senderName: user?.name || currentApp.customerName,
+        message: newMessage.trim(),
+        recipientId: currentApp.assignedAssociateId || 'CB-ADMIN-01',
       });
-
-      if (res.ok) {
-        setNewMessage('');
-        fetchPortalData();
-      }
+      setNewMessage('');
+      fetchPortalData();
     } catch (err) {
       console.error('Error sending message:', err);
     } finally {
@@ -120,28 +165,17 @@ export const CustomerPortalView: React.FC = () => {
 
     setSubmittingReview(true);
     try {
-      const token = localStorage.getItem('capitabee_auth_token');
-      const res = await fetch('/api/reviews', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          customerName: user?.name || currentApp.customerName,
-          applicationId: currentApp.id,
-          customerId: user?.id,
-          rating,
-          comment: reviewComment.trim(),
-        }),
+      await supabaseService.createReview({
+        customerName: user?.name || currentApp.customerName,
+        applicationId: currentApp.id,
+        customerId: user?.id,
+        rating,
+        comment: reviewComment.trim(),
       });
-
-      if (res.ok) {
-        setReviewComment('');
-        setReviewSuccess(true);
-        fetchPortalData();
-        setTimeout(() => setReviewSuccess(false), 5000);
-      }
+      setReviewComment('');
+      setReviewSuccess(true);
+      fetchPortalData();
+      setTimeout(() => setReviewSuccess(false), 5000);
     } catch (err) {
       console.error('Error submitting review:', err);
     } finally {

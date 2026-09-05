@@ -20,6 +20,8 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { Application, Customer } from '../types';
+import { supabaseService } from '../services/supabaseService';
+import { isSupabaseConfigured } from '../lib/supabase';
 
 interface PartnerDashboardProps {
   onNavigate: (viewId: string) => void;
@@ -43,25 +45,62 @@ export const PartnerDashboardView: React.FC<PartnerDashboardProps> = ({
   const fetchDashboardData = async () => {
     try {
       setLoading(true);
-      const token = localStorage.getItem('capitabee_auth_token');
-      const [statsRes, appsRes, custsRes] = await Promise.all([
-        fetch('/api/partner/stats', { headers: { Authorization: `Bearer ${token}` } }),
-        fetch('/api/applications', { headers: { Authorization: `Bearer ${token}` } }),
-        fetch('/api/customers', { headers: { Authorization: `Bearer ${token}` } }),
+
+      // Direct Supabase query
+      if (isSupabaseConfigured() && user) {
+        try {
+          const [allApps, allCusts] = await Promise.all([
+            supabaseService.getApplications(),
+            supabaseService.getCustomers(),
+          ]);
+
+          const partnerApps = allApps.filter(
+            a => a.assignedPartnerId === user.id || a.assignedAssociateId === user.id
+          );
+          const partnerCusts = allCusts.filter(
+            c => (c as any).partnerId === user.id || (c as any).assignedAssociateId === user.id
+          );
+
+          const totalDisbursed = partnerApps
+            .filter(a => a.currentStage === 12 || a.status === 'Disbursed')
+            .reduce((sum, a) => sum + (Number(a.requestedAmount) || 0), 0);
+
+          setApplications(partnerApps);
+          setCustomers(partnerCusts);
+          setStats({
+            totalApplications: partnerApps.length,
+            disbursedAmount: totalDisbursed,
+            activeCount: partnerApps.filter(a => a.currentStage < 12 && a.status !== 'Rejected').length,
+            target: user.target || 10000000,
+          });
+
+          setLoading(false);
+          return;
+        } catch (sbErr) {
+          console.warn('Supabase partner dashboard notice:', sbErr);
+        }
+      }
+
+      const [appsRes, custsRes] = await Promise.all([
+        api.getApplications(),
+        api.getCustomers(),
       ]);
 
-      if (statsRes.ok) {
-        const d = await statsRes.json();
-        setStats(d.stats);
-      }
-      if (appsRes.ok) {
-        const d = await appsRes.json();
-        setApplications(d.applications || []);
-      }
-      if (custsRes.ok) {
-        const d = await custsRes.json();
-        setCustomers(d.customers || []);
-      }
+      const partnerApps = (appsRes.applications || []).filter(
+        a => a.assignedPartnerId === user?.id || (a as any).partnerId === user?.id || a.assignedAssociateId === user?.id
+      );
+      const totalDisbursed = partnerApps
+        .filter(a => a.status === 'Disbursed')
+        .reduce((sum, a) => sum + (a.disbursedAmount || a.requestedAmount || 0), 0);
+
+      setApplications(partnerApps);
+      setCustomers(custsRes.customers || []);
+      setStats({
+        totalApplications: partnerApps.length,
+        disbursedAmount: totalDisbursed,
+        activeCount: partnerApps.filter(a => a.currentStage < 12 && a.status !== 'Rejected').length,
+        target: user.target || 10000000,
+      });
     } catch (err) {
       console.error('Error fetching partner dashboard data:', err);
     } finally {

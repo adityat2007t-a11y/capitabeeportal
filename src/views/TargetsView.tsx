@@ -19,6 +19,8 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { User } from '../types';
+import { supabaseService } from '../services/supabaseService';
+import { isSupabaseConfigured } from '../lib/supabase';
 
 interface TargetItem {
   id: string;
@@ -53,14 +55,48 @@ export const TargetsView: React.FC = () => {
   const fetchTargets = async () => {
     try {
       setLoading(true);
-      const token = localStorage.getItem('capitabee_auth_token');
-      const res = await fetch(`/api/targets?month=${selectedMonth}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setTargets(data.targets || []);
+
+      // Direct Supabase query
+      if (isSupabaseConfigured()) {
+        try {
+          const associates = await supabaseService.getAssociates();
+          const supabaseTargets = await supabaseService.getTargets(selectedMonth);
+
+          const items: TargetItem[] = associates.map(a => {
+            const tgt = supabaseTargets.find(t => t.associateId === a.id);
+            const targetAmount = tgt ? tgt.targetAmount : Number(a.monthlyTarget || a.target || 5000000);
+            const achievedAmount = tgt ? tgt.achievedAmount : 0;
+            const targetCustomers = tgt ? tgt.targetApplications : 20;
+            const achievedCustomers = tgt ? tgt.achievedApplications : 0;
+            const rate = targetAmount > 0 ? Math.round((achievedAmount / targetAmount) * 100) : 0;
+
+            return {
+              id: tgt?.id || `TGT-${a.id}-${selectedMonth}`,
+              userId: a.id,
+              userName: a.name,
+              role: a.role,
+              month: selectedMonth,
+              targetAmount,
+              targetCount: targetCustomers,
+              targetCustomers,
+              achievedAmount,
+              achievedCount: achievedCustomers,
+              achievedCustomers,
+              achievementRate: rate,
+              status: rate >= 100 ? 'Achieved' : rate < 50 ? 'Behind' : 'In Progress',
+            };
+          });
+
+          setTargets(items);
+          setLoading(false);
+          return;
+        } catch (sbErr) {
+          console.warn('Supabase getTargets notice:', sbErr);
+        }
       }
+
+      const res = await api.getTargets(selectedMonth);
+      setTargets(res.targets || []);
     } catch (err) {
       console.error('Error fetching targets:', err);
     } finally {
@@ -78,25 +114,15 @@ export const TargetsView: React.FC = () => {
 
     setSaving(true);
     try {
-      const token = localStorage.getItem('capitabee_auth_token');
-      const res = await fetch('/api/targets', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          userId: editingTarget.userId,
-          month: selectedMonth,
-          targetAmount: targetAmountInput,
-          targetCustomers: targetCustomersInput,
-        }),
+      await api.updateTarget({
+        associateId: editingTarget.userId,
+        associateName: editingTarget.userName,
+        monthYear: selectedMonth,
+        targetAmount: targetAmountInput,
+        targetApplications: targetCustomersInput,
       });
-
-      if (res.ok) {
-        setEditingTarget(null);
-        fetchTargets();
-      }
+      setEditingTarget(null);
+      fetchTargets();
     } catch (err) {
       console.error('Error saving target:', err);
     } finally {

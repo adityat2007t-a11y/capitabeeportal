@@ -23,6 +23,8 @@ import {
   X,
 } from 'lucide-react';
 import { User, UserStats } from '../types';
+import { supabaseService } from '../services/supabaseService';
+import { supabase, isSupabaseConfigured } from '../lib/supabase';
 
 interface PartnerWithStats extends User {
   stats?: {
@@ -74,14 +76,57 @@ export const PartnersView: React.FC = () => {
   const fetchPartners = async () => {
     try {
       setLoading(true);
-      const token = localStorage.getItem('capitabee_auth_token');
-      const res = await fetch('/api/partners', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setPartners(data.partners || []);
+
+      // Direct Supabase query
+      if (isSupabaseConfigured()) {
+        try {
+          const associates = await supabaseService.getAssociates();
+          const channelPartners = associates.filter(
+            a =>
+              (a as any).partnerType ||
+              a.department?.toLowerCase().includes('partner') ||
+              a.designation?.toLowerCase().includes('partner') ||
+              a.role === 'ASSOCIATE'
+          );
+
+          const apps = await supabaseService.getApplications();
+          const custs = await supabaseService.getCustomers();
+
+          const partnersWithStats: PartnerWithStats[] = channelPartners.map(p => {
+            const pApps = apps.filter(a => a.assignedPartnerId === p.id || a.assignedAssociateId === p.id);
+            const pCusts = custs.filter(c => (c as any).partnerId === p.id || (c as any).assignedAssociateId === p.id);
+            const disbursed = pApps.filter(a => a.currentStage === 12 || a.status === 'Disbursed');
+            const totalDisbursedAmount = disbursed.reduce((sum, a) => sum + (Number(a.requestedAmount) || 0), 0);
+            const targetVal = p.target || 10000000;
+
+            return {
+              ...p,
+              stats: {
+                totalCustomers: pCusts.length,
+                totalLeads: 0,
+                applications: pApps.length,
+                inProgress: pApps.filter(a => a.currentStage < 12 && a.status !== 'Rejected').length,
+                sanctions: pApps.filter(a => a.currentStage >= 8).length,
+                disbursements: disbursed.length,
+                totalLoanValue: pApps.reduce((sum, a) => sum + (Number(a.requestedAmount) || 0), 0),
+                disbursedAmount: totalDisbursedAmount,
+                target: targetVal,
+                achievementPct: Math.min(100, Math.round((totalDisbursedAmount / targetVal) * 100)),
+                conversionRate: pApps.length > 0 ? Math.round((disbursed.length / pApps.length) * 100) : 0,
+              },
+            };
+          });
+
+          setPartners(partnersWithStats);
+          setLoading(false);
+          return;
+        } catch (sbErr) {
+          console.warn('Supabase fetchPartners notice:', sbErr);
+        }
       }
+
+      const assocRes = await api.getAssociates();
+      setPartners((assocRes.associates || []).filter(a => (a as any).partnerType || a.department === 'Partner Network'));
     } catch (err) {
       console.error('Error fetching partners:', err);
     } finally {
@@ -91,16 +136,19 @@ export const PartnersView: React.FC = () => {
 
   const fetchNextId = async () => {
     try {
-      const token = localStorage.getItem('capitabee_auth_token');
-      const res = await fetch('/api/next-cb-id', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setNextCbId(data.nextId || 'CB-1001');
-      }
+      const associates = await supabaseService.getAssociates();
+      const cbNums = associates
+        .map(a => {
+          const match = a.id.match(/^CB-(\d+)$/i);
+          return match ? parseInt(match[1], 10) : null;
+        })
+        .filter((n): n is number => n !== null);
+
+      const maxNum = cbNums.length > 0 ? Math.max(...cbNums) : 1000;
+      setNextCbId(`CB-${maxNum + 1}`);
     } catch (err) {
       console.error('Error fetching next CB ID:', err);
+      setNextCbId('CB-1001');
     }
   };
 
@@ -152,54 +200,32 @@ export const PartnersView: React.FC = () => {
     setActionLoading(true);
     setAlertMsg(null);
 
-    const token = localStorage.getItem('capitabee_auth_token');
-
     try {
       if (selectedPartner) {
-        // Edit Partner
-        const res = await fetch(`/api/partners/${selectedPartner.id}`, {
-          method: 'PATCH',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            name: formData.name,
-            mobile: formData.mobile,
-            department: formData.department,
-            designation: formData.designation,
-            status: formData.status,
-            target: formData.target,
-            targetCustomers: formData.targetCustomers,
-          }),
+        await supabaseService.updateAssociate(selectedPartner.id, {
+          name: formData.name,
+          mobile: formData.mobile,
+          department: formData.department,
+          designation: formData.designation,
+          status: formData.status as any,
+          target: formData.target,
         });
-
-        if (!res.ok) {
-          const err = await res.json();
-          throw new Error(err.error || 'Failed to update partner');
-        }
-
         setAlertMsg({ type: 'success', text: `Partner ${selectedPartner.id} updated successfully.` });
       } else {
-        // Create Partner
-        const res = await fetch('/api/partners', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify(formData),
+        const partnerId = formData.customId || nextCbId || `CB-${Math.floor(1000 + Math.random() * 9000)}`;
+        await supabaseService.createAssociate({
+          customId: partnerId,
+          name: formData.name,
+          mobile: formData.mobile,
+          email: formData.email,
+          department: formData.department,
+          designation: formData.designation,
+          status: formData.status,
+          target: formData.target,
+          role: 'ASSOCIATE',
         });
-
-        if (!res.ok) {
-          const err = await res.json();
-          throw new Error(err.error || 'Failed to create partner');
-        }
-
-        const data = await res.json();
-        setAlertMsg({ type: 'success', text: `Partner ${data.partner?.id || 'account'} created successfully!` });
+        setAlertMsg({ type: 'success', text: `Partner ${partnerId} created successfully!` });
       }
-
       setIsModalOpen(false);
       fetchPartners();
     } catch (err: any) {
@@ -215,21 +241,7 @@ export const PartnersView: React.FC = () => {
 
     setActionLoading(true);
     try {
-      const token = localStorage.getItem('capitabee_auth_token');
-      const res = await fetch(`/api/partners/${selectedPartner.id}/reset-password`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ newPassword: resetPassword }),
-      });
-
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || 'Failed to reset password');
-      }
-
+      await api.resetAssociatePassword(selectedPartner.id, resetPassword);
       setAlertMsg({ type: 'success', text: `Password for Partner ${selectedPartner.id} reset successfully.` });
       setIsResetModalOpen(false);
       setResetPassword('');
