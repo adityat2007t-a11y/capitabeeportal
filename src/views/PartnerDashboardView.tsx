@@ -22,6 +22,7 @@ import { useAuth } from '../context/AuthContext';
 import { Application, Customer } from '../types';
 import { supabaseService } from '../services/supabaseService';
 import { isSupabaseConfigured } from '../lib/supabase';
+import { api } from '../services/api';
 
 interface PartnerDashboardProps {
   onNavigate: (viewId: string) => void;
@@ -91,7 +92,7 @@ export const PartnerDashboardView: React.FC<PartnerDashboardProps> = ({
       );
       const totalDisbursed = partnerApps
         .filter(a => a.status === 'Disbursed')
-        .reduce((sum, a) => sum + (a.disbursedAmount || a.requestedAmount || 0), 0);
+        .reduce((sum, a) => sum + (a.disbursementAmount || a.requestedAmount || 0), 0);
 
       setApplications(partnerApps);
       setCustomers(custsRes.customers || []);

@@ -5,6 +5,7 @@
 
 import {
   User,
+  UserRole,
   Lead,
   Application,
   Customer,
@@ -79,6 +80,22 @@ export const api = {
     // Provides immediate graceful login for predefined CRM administrative roles without failing with 404
     const normalizedEmail = email.trim().toLowerCase();
     const demoUsers: Record<string, User> = {
+      'info.capitabee@gmail.com': {
+        id: 'usr_admin_00',
+        name: 'Principal Administrator',
+        email: 'info.capitabee@gmail.com',
+        mobile: '+91 80108 86625',
+        role: 'ADMIN',
+        employeeId: 'CB-ADM-001',
+        department: 'Executive Management',
+        designation: 'Managing Director & Principal Officer',
+        status: 'Active',
+        onlineStatus: 'Online',
+        target: 25000000,
+        monthlyTarget: 25000000,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
       'admin@capitabee.com': {
         id: 'usr_admin_01',
         name: 'Rajesh Sharma',
@@ -604,8 +621,8 @@ export const api = {
           city: leadData.city,
           state: leadData.state,
           loanType: leadData.loanType || 'Personal Loan',
-          loanAmount: Number(leadData.loanAmount || leadData.amount || 0),
-          leadSource: 'Website Inquiry',
+          requiredAmount: Number(leadData.loanAmount || leadData.amount || leadData.requiredAmount || 0),
+          leadSource: 'Website',
           notes: leadData.notes || 'Website lead submission',
         });
         return { success: true, leadId: lead.id, message: 'Inquiry received successfully!' };
@@ -656,10 +673,10 @@ export const api = {
             requestedAmount: Number(appData.requestedAmount || appData.amount || 0),
             currentStage: 1,
             currentStageName: 'Lead Generated',
-            status: 'In Review',
+            status: 'In Process',
             stages: [],
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
+            createdDate: new Date().toISOString(),
+            updatedDate: new Date().toISOString(),
           },
           message: res.message || 'Application submitted successfully!',
         };
@@ -694,10 +711,10 @@ export const api = {
         requestedAmount: Number(appData.requestedAmount || appData.amount || 0),
         currentStage: 1,
         currentStageName: 'Lead Generated',
-        status: 'In Review',
+        status: 'In Process',
         stages: [],
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+        createdDate: new Date().toISOString(),
+        updatedDate: new Date().toISOString(),
       },
       message: 'Application received.',
     };
@@ -1144,9 +1161,12 @@ export const api = {
         customerName: data.customerName,
         mobile: data.mobile,
         score,
-        status: score >= 750 ? 'Excellent' : score >= 700 ? 'Good' : 'Fair',
-        summary: `Credit score: ${score}/900. Verification completed.`,
-        date: new Date().toISOString(),
+        status: 'CONNECTED_RESULT',
+        requestedBy: 'Staff',
+        requestedByRole: 'ADMIN',
+        consentObtained: true,
+        requestedAt: new Date().toISOString(),
+        notes: `Credit score: ${score}/900. Verification completed.`,
       },
     };
   },
@@ -1192,7 +1212,7 @@ export const api = {
         ]);
         const totalDisbursed = apps
           .filter(a => a.status === 'Disbursed')
-          .reduce((sum, a) => sum + (a.disbursedAmount || a.requestedAmount || 0), 0);
+          .reduce((sum, a) => sum + (a.disbursementAmount || a.requestedAmount || 0), 0);
         return {
           stats: {
             totalLeads: leads.length,
@@ -1431,9 +1451,12 @@ export const api = {
       settings: {
         companyName: 'Capitabee Financial Services Pvt Ltd',
         tagline: 'Delivering Financial Clarity',
+        officeAddress: 'DLF Cyber City, Sector 24, Gurugram, Haryana - 122002',
+        address: 'DLF Cyber City, Sector 24, Gurugram, Haryana - 122002',
         email: 'support@capitabee.com',
         phone: '+91 96504 53648',
-        address: 'DLF Cyber City, Sector 24, Gurugram, Haryana - 122002',
+        whatsapp: '+91 96504 53648',
+        instagram: 'https://instagram.com/capitabee',
         website: 'https://capitabee.com',
       },
     };
@@ -1458,9 +1481,12 @@ export const api = {
       settings: {
         companyName: settings.companyName || 'Capitabee Financial Services Pvt Ltd',
         tagline: settings.tagline || 'Delivering Financial Clarity',
+        officeAddress: settings.officeAddress || 'DLF Cyber City, Sector 24, Gurugram, Haryana - 122002',
+        address: settings.address || settings.officeAddress || 'DLF Cyber City, Sector 24, Gurugram, Haryana - 122002',
         email: settings.email || 'support@capitabee.com',
         phone: settings.phone || '+91 96504 53648',
-        address: settings.address || 'DLF Cyber City, Sector 24, Gurugram, Haryana - 122002',
+        whatsapp: settings.whatsapp || '+91 96504 53648',
+        instagram: settings.instagram || 'https://instagram.com/capitabee',
         website: settings.website || 'https://capitabee.com',
       },
     };

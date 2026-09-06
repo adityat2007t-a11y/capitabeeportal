@@ -25,6 +25,7 @@ import {
 import { User, UserStats } from '../types';
 import { supabaseService } from '../services/supabaseService';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
+import { api } from '../services/api';
 
 interface PartnerWithStats extends User {
   stats?: {

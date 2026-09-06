@@ -294,6 +294,7 @@ export interface NotificationLog {
   status: NotificationStatus;
   sentAt: string;
   error?: string;
+  leadId?: string;
   associateId?: string;
   customerId?: string;
   applicationId?: string;
@@ -435,15 +436,17 @@ export interface CompanySettings {
   companyName: string;
   tagline: string;
   officeAddress: string;
+  address?: string;
+  website?: string;
   phone: string;
   whatsapp: string;
   email: string;
   instagram: string;
-  loanProducts: LoanProduct[];
-  lendingPartners: LendingPartner[];
-  leadSources: string[];
-  leadStatuses: string[];
-  staleLeadHours: number;
-  stuckApplicationDays: number;
+  loanProducts?: LoanProduct[];
+  lendingPartners?: LendingPartner[];
+  leadSources?: string[];
+  leadStatuses?: string[];
+  staleLeadHours?: number;
+  stuckApplicationDays?: number;
 }
 

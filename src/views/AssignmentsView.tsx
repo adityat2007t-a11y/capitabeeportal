@@ -20,6 +20,7 @@ import { useAuth } from '../context/AuthContext';
 import { Lead, Application, Customer, User } from '../types';
 import { supabaseService } from '../services/supabaseService';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
+import { api } from '../services/api';
 
 export const AssignmentsView: React.FC = () => {
   const { role } = useAuth();
@@ -156,16 +157,17 @@ export const AssignmentsView: React.FC = () => {
       }
 
       // Perform client-side / Supabase bulk assignment
+      const assoc = associates.find(a => a.id === targetAssociateId);
       for (const id of selectedIds) {
         if (activeTab === 'leads') {
           await api.updateLead(id, {
             assignedAssociateId: targetAssociateId || undefined,
-            assignedAssociateName: targetAssoc?.name || undefined,
+            assignedAssociateName: assoc?.name || undefined,
           });
         } else if (activeTab === 'applications') {
           await api.updateApplication(id, {
             assignedAssociateId: targetAssociateId || undefined,
-            assignedAssociateName: targetAssoc?.name || undefined,
+            assignedAssociateName: assoc?.name || undefined,
           });
         }
       }

@@ -12,8 +12,11 @@ import {
   Application,
   Customer,
   DocumentRecord,
+  DocumentType,
   StageUpdateLog,
   FollowUp,
+  FollowUpType,
+  FollowUpStatus,
   LeadNote,
   AuditLog,
   NotificationLog,
@@ -315,6 +318,25 @@ export const supabaseService = {
       await supabase.auth.signOut();
     } catch (err) {
       console.warn('SignOut warning:', err);
+    }
+  },
+
+  async changePassword(newPassword: string): Promise<{ error: any }> {
+    if (!isSupabaseConfigured()) return { error: new Error('Supabase not configured') };
+    try {
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      return { error };
+    } catch (err) {
+      return { error: err };
+    }
+  },
+
+  async resetPasswordForUser(userId: string, newPassword: string): Promise<void> {
+    if (!isSupabaseConfigured()) return;
+    try {
+      await supabase.auth.updateUser({ password: newPassword });
+    } catch (err) {
+      console.warn('resetPasswordForUser notice:', err);
     }
   },
 
@@ -621,6 +643,168 @@ export const supabaseService = {
     });
   },
 
+  async findLeadByPhone(phoneDigits: string): Promise<{ data: Lead | null }> {
+    if (!isSupabaseConfigured()) return { data: null };
+    try {
+      const { data } = await supabase
+        .from('leads')
+        .select('*')
+        .ilike('mobile', `%${phoneDigits}%`)
+        .limit(1)
+        .maybeSingle();
+      return { data: data ? mapRowToLead(data) : null };
+    } catch {
+      return { data: null };
+    }
+  },
+
+  async createFollowUp(leadId: string, data: { scheduledDate: string; scheduledTime: string; type: string; notes?: string }): Promise<FollowUp> {
+    const id = `FLW-${Date.now()}`;
+    const now = new Date().toISOString();
+    const currentUser = await this.getCurrentUser();
+    const payload = {
+      id,
+      lead_id: leadId,
+      associate_id: currentUser?.id || 'usr_staff',
+      associate_name: currentUser?.name || 'Staff',
+      scheduled_date: data.scheduledDate,
+      scheduled_time: data.scheduledTime,
+      type: data.type,
+      notes: data.notes || null,
+      status: 'Pending',
+      created_at: now,
+    };
+    if (isSupabaseConfigured()) {
+      try {
+        const { data: row } = await supabase.from('follow_ups').insert(payload).select().single();
+        if (row) {
+          return {
+            id: row.id,
+            leadId: row.lead_id,
+            customerName: '',
+            customerMobile: '',
+            associateId: row.associate_id || currentUser?.id || 'usr_staff',
+            associateName: row.associate_name || currentUser?.name || 'Staff',
+            scheduledDate: row.scheduled_date,
+            scheduledTime: row.scheduled_time,
+            type: (row.type as FollowUpType) || 'Call',
+            status: (row.status as FollowUpStatus) || 'Pending',
+            notes: row.notes,
+            createdAt: row.created_at,
+          };
+        }
+      } catch (err) {
+        console.warn('createFollowUp error:', err);
+      }
+    }
+    return {
+      id,
+      leadId,
+      customerName: '',
+      customerMobile: '',
+      associateId: currentUser?.id || 'usr_staff',
+      associateName: currentUser?.name || 'Staff',
+      scheduledDate: data.scheduledDate,
+      scheduledTime: data.scheduledTime,
+      type: (data.type as FollowUpType) || 'Call',
+      status: 'Pending',
+      notes: data.notes,
+      createdAt: now,
+    };
+  },
+
+  async updateFollowUp(id: string, data: Partial<FollowUp>): Promise<FollowUp> {
+    if (isSupabaseConfigured()) {
+      try {
+        const payload: any = {};
+        if (data.status) payload.status = data.status;
+        if (data.notes) payload.notes = data.notes;
+        if (data.outcome) payload.outcome = data.outcome;
+        if (data.status === 'Completed') payload.completed_at = new Date().toISOString();
+
+        const { data: row } = await supabase.from('follow_ups').update(payload).eq('id', id).select().single();
+        if (row) {
+          return {
+            id: row.id,
+            leadId: row.lead_id,
+            customerName: '',
+            customerMobile: '',
+            associateId: row.associate_id || '',
+            associateName: row.associate_name || '',
+            scheduledDate: row.scheduled_date,
+            scheduledTime: row.scheduled_time,
+            type: (row.type as FollowUpType) || 'Call',
+            status: (row.status as FollowUpStatus) || 'Pending',
+            notes: row.notes,
+            outcome: row.outcome,
+            completedAt: row.completed_at,
+            createdAt: row.created_at,
+          };
+        }
+      } catch (err) {
+        console.warn('updateFollowUp error:', err);
+      }
+    }
+    return {
+      id,
+      leadId: data.leadId || '',
+      customerName: '',
+      customerMobile: '',
+      associateId: data.associateId || '',
+      associateName: data.associateName || '',
+      scheduledDate: data.scheduledDate || '',
+      scheduledTime: data.scheduledTime || '',
+      type: data.type || 'Call',
+      status: data.status || 'Pending',
+      notes: data.notes,
+      outcome: data.outcome,
+      completedAt: data.completedAt,
+      createdAt: new Date().toISOString(),
+    };
+  },
+
+  async addLeadNote(leadId: string, content: string): Promise<LeadNote> {
+    const id = `NOTE-${Date.now()}`;
+    const now = new Date().toISOString();
+    const currentUser = await this.getCurrentUser();
+    const payload = {
+      id,
+      lead_id: leadId,
+      author_id: currentUser?.id || 'usr_staff',
+      author_name: currentUser?.name || 'Staff',
+      author_role: currentUser?.role || 'ASSOCIATE',
+      content,
+      created_at: now,
+    };
+    if (isSupabaseConfigured()) {
+      try {
+        const { data: row } = await supabase.from('lead_notes').insert(payload).select().single();
+        if (row) {
+          return {
+            id: row.id,
+            leadId: row.lead_id,
+            authorId: row.author_id,
+            authorName: row.author_name,
+            authorRole: row.author_role,
+            content: row.content,
+            createdAt: row.created_at,
+          };
+        }
+      } catch (err) {
+        console.warn('addLeadNote error:', err);
+      }
+    }
+    return {
+      id,
+      leadId,
+      authorId: currentUser?.id || 'usr_staff',
+      authorName: currentUser?.name || 'Staff',
+      authorRole: currentUser?.role || 'ASSOCIATE',
+      content,
+      createdAt: now,
+    };
+  },
+
   // -------------------------------------------------------------
   // 4. APPLICATIONS & 12-STAGE LOAN PIPELINE
   // -------------------------------------------------------------
@@ -916,17 +1100,21 @@ export const supabaseService = {
         if (custMatch?.id) {
           existingCustId = custMatch.id;
         } else {
-          await supabase.from('customers').insert({
-            id: custId,
-            name: payload.fullName.trim(),
-            mobile: phoneDigits,
-            phone: phoneDigits,
-            email: emailClean || null,
-            city: payload.city ? payload.city.trim() : null,
-            state: payload.state ? payload.state.trim() : null,
-            employment_type: payload.employmentType || 'Salaried',
-            created_at: now,
-          }).catch(() => {});
+          try {
+            await supabase.from('customers').insert({
+              id: custId,
+              name: payload.fullName.trim(),
+              mobile: phoneDigits,
+              phone: phoneDigits,
+              email: emailClean || null,
+              city: payload.city ? payload.city.trim() : null,
+              state: payload.state ? payload.state.trim() : null,
+              employment_type: payload.employmentType || 'Salaried',
+              created_at: now,
+            });
+          } catch {
+            // ignore
+          }
         }
 
         // Insert into applications table
@@ -1165,6 +1353,83 @@ export const supabaseService = {
     });
 
     return mapRowToDocument(data);
+  },
+
+  async uploadDocument(
+    documentId: string,
+    fileName: string,
+    fileSize?: string,
+    fileData?: string
+  ): Promise<DocumentRecord> {
+    const updatePayload: any = {
+      file_name: fileName,
+      file_size: fileSize || '1.2 MB',
+      file_url: fileData || `https://storage.capitabee.com/docs/${documentId}/${encodeURIComponent(fileName)}`,
+      status: 'Uploaded',
+      uploaded_date: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+
+    if (isSupabaseConfigured()) {
+      try {
+        const { data, error } = await supabase
+          .from('documents')
+          .update(updatePayload)
+          .eq('id', documentId)
+          .select()
+          .single();
+
+        if (data && !error) {
+          return mapRowToDocument(data);
+        }
+      } catch (err) {
+        console.warn('uploadDocument supabase error:', err);
+      }
+    }
+
+    return {
+      id: documentId,
+      applicationId: '',
+      documentType: 'Other Documents' as DocumentType,
+      customDocumentName: fileName,
+      fileName,
+      fileSize: fileSize || '1.2 MB',
+      fileData: fileData || '',
+      status: 'Uploaded',
+      requestedBy: 'Staff',
+      requestedDate: new Date().toISOString(),
+      uploadedDate: new Date().toISOString(),
+    };
+  },
+
+  async getFollowUps(associateId?: string): Promise<FollowUp[]> {
+    if (!isSupabaseConfigured()) return [];
+    try {
+      let query = supabase.from('follow_ups').select('*').order('scheduled_date', { ascending: true });
+      if (associateId) {
+        query = query.eq('associate_id', associateId);
+      }
+      const { data, error } = await query;
+      if (error || !data) return [];
+      return data.map((row: any) => ({
+        id: row.id,
+        leadId: row.lead_id,
+        customerName: row.customer_name || '',
+        customerMobile: row.customer_mobile || '',
+        associateId: row.associate_id || '',
+        associateName: row.associate_name || '',
+        scheduledDate: row.scheduled_date,
+        scheduledTime: row.scheduled_time,
+        type: (row.type as FollowUpType) || 'Call',
+        status: (row.status as FollowUpStatus) || 'Pending',
+        notes: row.notes,
+        outcome: row.outcome,
+        completedAt: row.completed_at,
+        createdAt: row.created_at,
+      }));
+    } catch {
+      return [];
+    }
   },
 
   async reviewDocument(

@@ -111,7 +111,7 @@ export const CustomerPortalView: React.FC = () => {
       const myApps = (appsRes.applications || []).filter(
         a => (user?.id && (a.customerId === user.id || a.id === user.id)) ||
              (myPhone && (a.customerPhone === myPhone || (a as any).mobile === myPhone)) ||
-             (myEmail && (a.customerEmail === myEmail || a.email === myEmail))
+             (myEmail && (a.customerEmail === myEmail || (a as any).email === myEmail))
       );
 
       setApplications(myApps);

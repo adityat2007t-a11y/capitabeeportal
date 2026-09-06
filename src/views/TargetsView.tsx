@@ -21,6 +21,7 @@ import { useAuth } from '../context/AuthContext';
 import { User } from '../types';
 import { supabaseService } from '../services/supabaseService';
 import { isSupabaseConfigured } from '../lib/supabase';
+import { api } from '../services/api';
 
 interface TargetItem {
   id: string;

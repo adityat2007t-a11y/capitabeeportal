@@ -29,6 +29,7 @@ import { useAuth } from '../context/AuthContext';
 import { Customer, User } from '../types';
 import { supabase, isSupabaseConfigured, SUPABASE_URL } from '../lib/supabase';
 import { supabaseService } from '../services/supabaseService';
+import { api } from '../services/api';
 
 export const CustomersView: React.FC = () => {
   const { role, user } = useAuth();
