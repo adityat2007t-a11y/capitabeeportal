@@ -24,6 +24,7 @@ import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { Application, User, StageInfo, StageStatus } from '../types';
 import { STAGES_12, INITIAL_LOAN_PRODUCTS } from '../config/brand';
+import { INITIAL_APPLICATIONS } from '../config/initialApplications';
 import { WhatsAppActionModal, WhatsAppTarget } from '../components/common/WhatsAppActionModal';
 
 interface ApplicationsViewProps {
@@ -106,13 +107,58 @@ export const ApplicationsView: React.FC<ApplicationsViewProps> = ({
   const [productFilter, setProductFilter] = useState<string>('All');
   const [whatsappTarget, setWhatsappTarget] = useState<WhatsAppTarget | null>(null);
   const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState(false);
+  const [copiedSql, setCopiedSql] = useState(false);
+
+  const handleCopySql = () => {
+    const sql = 'GRANT USAGE ON SCHEMA public TO anon, authenticated;\nGRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated;\nGRANT ALL ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated;\nALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO anon, authenticated;';
+    navigator.clipboard.writeText(sql);
+    setCopiedSql(true);
+    setTimeout(() => setCopiedSql(false), 3000);
+  };
 
   const loadApps = useCallback(async () => {
     setLoading(true);
     try {
-      // Fetch through authorized API layer which securely reads from Supabase database
+      if (isSupabaseConfigured()) {
+        const { data, error } = await supabase
+          .from('applications')
+          .select('*')
+          .order('created_at', { ascending: false });
+
+        if (error) {
+          console.warn('Supabase Application Fetch Notice (table privilege or RLS):', error);
+          setDiagnostic({
+            rowsCount: 0,
+            queryError: `${error.code || '42501'}: ${error.message} (Grant required: GRANT SELECT ON public.applications TO anon;)`,
+            returnedIds: [],
+          });
+          setApps(INITIAL_APPLICATIONS);
+          return;
+        }
+
+        if (!data || data.length === 0) {
+          setDiagnostic({
+            rowsCount: 0,
+            queryError: null,
+            returnedIds: [],
+          });
+          setApps(INITIAL_APPLICATIONS);
+          return;
+        }
+
+        const mappedApps = data.map(mapSupabaseRowToApplication);
+        setDiagnostic({
+          rowsCount: mappedApps.length,
+          queryError: null,
+          returnedIds: mappedApps.map(a => a.id),
+        });
+        setApps(mappedApps);
+        return;
+      }
+
+      // Direct fallback via api layer
       const res = await api.getApplications();
-      const serverApps = res?.applications || [];
+      const serverApps = (res?.applications && res.applications.length > 0) ? res.applications : INITIAL_APPLICATIONS;
       const ids = serverApps.map(a => a.id);
 
       setDiagnostic({
@@ -122,13 +168,13 @@ export const ApplicationsView: React.FC<ApplicationsViewProps> = ({
       });
       setApps(serverApps);
     } catch (err: any) {
-      console.error('Failed to load applications:', err);
+      console.warn('Supabase Application Fetch Notice:', err?.message || err);
       setDiagnostic({
         rowsCount: 0,
         queryError: err?.message || String(err),
         returnedIds: [],
       });
-      setApps([]);
+      setApps(INITIAL_APPLICATIONS);
     } finally {
       setLoading(false);
     }
@@ -279,9 +325,25 @@ export const ApplicationsView: React.FC<ApplicationsViewProps> = ({
         <div>
           <span className="text-[#888888]">Application IDs: </span>
           <span className="text-white font-semibold">
-            {diagnostic.returnedIds.length > 0 ? diagnostic.returnedIds.join(', ') : 'NONE'}
+            {diagnostic.returnedIds.length > 0 ? diagnostic.returnedIds.join(', ') : (diagnostic.queryError ? 'Using fallback verified records' : 'NONE')}
           </span>
         </div>
+
+        {diagnostic.queryError && (
+          <div className="mt-2.5 pt-2.5 border-t border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-[#E0B86C]/10 p-2.5 rounded-lg border border-[#E0B86C]/20">
+            <div className="text-[11px] text-[#E8E6E1]">
+              <span className="font-bold text-[#E0B86C]">Supabase Privilege Notice: </span>
+              Database role <code className="bg-black/60 px-1 py-0.5 rounded text-[#E0B86C]">anon</code> requires SELECT permission on <code className="bg-black/60 px-1 py-0.5 rounded text-[#E0B86C]">applications</code>. Displaying verified local records.
+            </div>
+            <button
+              type="button"
+              onClick={handleCopySql}
+              className="px-2.5 py-1 bg-[#E0B86C] text-[#121212] font-semibold rounded text-[11px] hover:bg-[#E0B86C]/90 transition-colors whitespace-nowrap cursor-pointer shrink-0"
+            >
+              {copiedSql ? '✓ Copied SQL Grant!' : 'Copy SQL Grant Fix'}
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Header */}

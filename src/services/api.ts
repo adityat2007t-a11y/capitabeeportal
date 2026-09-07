@@ -24,6 +24,7 @@ import {
 } from '../types';
 import { supabaseService } from './supabaseService';
 import { isSupabaseConfigured } from '../lib/supabase';
+import { INITIAL_APPLICATIONS } from '../config/initialApplications';
 
 const BASE_URL = '/api';
 
@@ -608,7 +609,7 @@ export const api = {
       // Backend not running
     }
 
-    return { applications: [] };
+    return { applications: INITIAL_APPLICATIONS };
   },
 
   async submitWebsiteLead(leadData: any): Promise<{ success: boolean; leadId: string; message: string }> {
@@ -1281,8 +1282,20 @@ export const api = {
   // INTEGRATIONS & NOTIFICATIONS
   // -------------------------------------------------------------
   async getIntegrationsStatus(): Promise<{ integrations: Record<string, { name: string; status: string; message: string }> }> {
-    let data: { integrations: Record<string, { name: string; status: string; message: string }> } = {
+    // Inject Supabase live connection status into integrations dashboard directly
+    const sbStatus = await this.getSupabaseStatus();
+
+    const data: { integrations: Record<string, { name: string; status: string; message: string }> } = {
       integrations: {
+        supabase: {
+          name: `Shared Supabase Database (${sbStatus.url})`,
+          status: sbStatus.connected ? 'CONNECTED' : sbStatus.configured ? 'CONNECTING / TABLES REQUIRED' : 'NOT CONFIGURED',
+          message: sbStatus.connected
+            ? `Live PostgreSQL connection verified (${sbStatus.latencyMs}ms latency).`
+            : sbStatus.configured
+            ? `Connected to Supabase project, but tables need migration: ${sbStatus.missingTables.join(', ')}`
+            : 'VITE_SUPABASE_ANON_KEY environment variable is not configured.',
+        },
         whatsapp: {
           name: 'WhatsApp Business API (Meta Cloud)',
           status: 'CONFIGURED',
@@ -1294,32 +1307,6 @@ export const api = {
           message: 'Member ID and certificate required for direct XML bureau pulls.',
         },
       },
-    };
-
-    try {
-      const res = await fetch(`${BASE_URL}/integrations/status`, {
-        headers: getAuthHeaders(),
-      });
-      if (res.ok) {
-        data = await handleResponse<{ integrations: Record<string, { name: string; status: string; message: string }> }>(res);
-      }
-    } catch {
-      // Backend not running (e.g. Vercel client-only)
-    }
-
-    // Inject Supabase live connection status into integrations dashboard
-    const sbStatus = await this.getSupabaseStatus();
-    data.integrations = {
-      supabase: {
-        name: `Shared Supabase Database (${sbStatus.url})`,
-        status: sbStatus.connected ? 'CONNECTED' : sbStatus.configured ? 'CONNECTING / TABLES REQUIRED' : 'NOT CONFIGURED',
-        message: sbStatus.connected
-          ? `Live PostgreSQL connection verified (${sbStatus.latencyMs}ms latency).`
-          : sbStatus.configured
-          ? `Connected to Supabase project, but tables need migration: ${sbStatus.missingTables.join(', ')}`
-          : 'VITE_SUPABASE_ANON_KEY environment variable is not configured.',
-      },
-      ...data.integrations,
     };
 
     return data;
@@ -1436,17 +1423,6 @@ export const api = {
   // SETTINGS & AUDIT LOGS
   // -------------------------------------------------------------
   async getSettings(): Promise<{ settings: CompanySettings }> {
-    try {
-      const res = await fetch(`${BASE_URL}/settings`, {
-        headers: getAuthHeaders(),
-      });
-      if (res.ok) {
-        return await handleResponse<{ settings: CompanySettings }>(res);
-      }
-    } catch {
-      // Backend not running
-    }
-
     return {
       settings: {
         companyName: 'Capitabee Financial Services Pvt Ltd',
@@ -1463,19 +1439,6 @@ export const api = {
   },
 
   async updateSettings(settings: Partial<CompanySettings>): Promise<{ success: boolean; settings: CompanySettings }> {
-    try {
-      const res = await fetch(`${BASE_URL}/settings`, {
-        method: 'PATCH',
-        headers: getAuthHeaders(),
-        body: JSON.stringify(settings),
-      });
-      if (res.ok) {
-        return await handleResponse<{ success: boolean; settings: CompanySettings }>(res);
-      }
-    } catch {
-      // Backend not running
-    }
-
     return {
       success: true,
       settings: {

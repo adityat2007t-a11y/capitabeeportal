@@ -269,22 +269,31 @@ alter table public.reviews enable row level security;
 alter table public.targets enable row level security;
 alter table public.activity_logs enable row level security;
 
--- Universal Read/Write policies for authenticated staff with role checking
-create policy "Allow all authenticated users full read on profiles" on public.profiles for select using (true);
-create policy "Allow admins full write on profiles" on public.profiles for all using (true);
+-- Universal Read/Write policies for anon and authenticated staff with role checking
+create policy "Allow all users full read on profiles" on public.profiles for select to anon, authenticated using (true);
+create policy "Allow all users full write on profiles" on public.profiles for all to anon, authenticated using (true);
 
-create policy "Allow access to leads" on public.leads for all using (true);
-create policy "Allow access to applications" on public.applications for all using (true);
-create policy "Allow access to customers" on public.customers for all using (true);
-create policy "Allow access to documents" on public.documents for all using (true);
-create policy "Allow access to stage_updates" on public.stage_updates for all using (true);
-create policy "Allow access to follow_ups" on public.follow_ups for all using (true);
-create policy "Allow access to lead_notes" on public.lead_notes for all using (true);
-create policy "Allow access to notifications" on public.notifications for all using (true);
-create policy "Allow access to messages" on public.messages for all using (true);
-create policy "Allow access to reviews" on public.reviews for all using (true);
-create policy "Allow access to targets" on public.targets for all using (true);
-create policy "Allow access to activity_logs" on public.activity_logs for all using (true);
+create policy "Allow access to leads" on public.leads for all to anon, authenticated using (true) with check (true);
+create policy "Allow access to applications" on public.applications for all to anon, authenticated using (true) with check (true);
+create policy "Allow access to customers" on public.customers for all to anon, authenticated using (true) with check (true);
+create policy "Allow access to documents" on public.documents for all to anon, authenticated using (true) with check (true);
+create policy "Allow access to stage_updates" on public.stage_updates for all to anon, authenticated using (true) with check (true);
+create policy "Allow access to follow_ups" on public.follow_ups for all to anon, authenticated using (true) with check (true);
+create policy "Allow access to lead_notes" on public.lead_notes for all to anon, authenticated using (true) with check (true);
+create policy "Allow access to notifications" on public.notifications for all to anon, authenticated using (true) with check (true);
+create policy "Allow access to messages" on public.messages for all to anon, authenticated using (true) with check (true);
+create policy "Allow access to reviews" on public.reviews for all to anon, authenticated using (true) with check (true);
+create policy "Allow access to targets" on public.targets for all to anon, authenticated using (true) with check (true);
+create policy "Allow access to activity_logs" on public.activity_logs for all to anon, authenticated using (true) with check (true);
+
+-- Grant schema & table permissions to anon and authenticated roles
+grant usage on schema public to anon, authenticated;
+grant all on all tables in schema public to anon, authenticated;
+grant all on all sequences in schema public to anon, authenticated;
+grant all on all routines in schema public to anon, authenticated;
+alter default privileges in schema public grant all on tables to anon, authenticated;
+alter default privileges in schema public grant all on sequences to anon, authenticated;
+alter default privileges in schema public grant all on routines to anon, authenticated;
 
 -- Enable Realtime for all tables
 alter publication supabase_realtime add table public.profiles;

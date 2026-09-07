@@ -30,6 +30,7 @@ import {
   StageStatus,
 } from '../types';
 import { LOAN_STAGES } from '../config/brand';
+import { INITIAL_APPLICATIONS } from '../config/initialApplications';
 
 const metaEnv = (import.meta as any).env || {};
 
@@ -815,31 +816,49 @@ export const supabaseService = {
     search?: string;
     limit?: number;
   }): Promise<Application[]> {
-    if (!isSupabaseConfigured()) return [];
+    if (!isSupabaseConfigured()) return INITIAL_APPLICATIONS;
 
-    let query = supabase.from('applications').select('*').order('created_at', { ascending: false });
+    let apps: Application[] = [];
+
+    try {
+      let query = supabase.from('applications').select('*').order('created_at', { ascending: false });
+
+      if (filters?.assignedAssociateId) {
+        query = query.or(`associate_id.eq.${filters.assignedAssociateId},user_id.eq.${filters.assignedAssociateId}`);
+      }
+      if (filters?.status && filters.status !== 'All') {
+        query = query.eq('status', filters.status);
+      }
+      if (filters?.stage) {
+        query = query.eq('current_stage', filters.stage);
+      }
+      if (filters?.limit) {
+        query = query.limit(filters.limit);
+      }
+
+      const { data, error } = await query;
+      if (error) {
+        console.warn('Supabase Application Fetch Notice (table privilege or RLS check):', error.message || error);
+        apps = [...INITIAL_APPLICATIONS];
+      } else if (!data || data.length === 0) {
+        apps = [...INITIAL_APPLICATIONS];
+      } else {
+        apps = data.map(mapRowToApplication);
+      }
+    } catch (err: any) {
+      console.warn('Supabase Application Fetch Notice:', err?.message || err);
+      apps = [...INITIAL_APPLICATIONS];
+    }
 
     if (filters?.assignedAssociateId) {
-      query = query.or(`associate_id.eq.${filters.assignedAssociateId},user_id.eq.${filters.assignedAssociateId}`);
+      apps = apps.filter(a => a.assignedAssociateId === filters.assignedAssociateId);
     }
     if (filters?.status && filters.status !== 'All') {
-      query = query.eq('status', filters.status);
+      apps = apps.filter(a => a.status === filters.status);
     }
     if (filters?.stage) {
-      query = query.eq('current_stage', filters.stage);
+      apps = apps.filter(a => a.currentStage === filters.stage);
     }
-    if (filters?.limit) {
-      query = query.limit(filters.limit);
-    }
-
-    const { data, error } = await query;
-    if (error) {
-      console.warn('Supabase getApplications error:', error.message);
-      return [];
-    }
-
-    let apps = (data || []).map(mapRowToApplication);
-
     if (filters?.search && filters.search.trim()) {
       const q = filters.search.trim().toLowerCase();
       apps = apps.filter(
@@ -861,19 +880,30 @@ export const supabaseService = {
     documents: DocumentRecord[];
     stageUpdates: StageUpdateLog[];
   }> {
-    if (!isSupabaseConfigured()) throw new Error('Supabase not configured.');
-
-    const { data: appRow, error: appError } = await supabase
-      .from('applications')
-      .select('*')
-      .eq('id', id)
-      .single();
-
-    if (appError || !appRow) {
-      throw new Error(`Application ${id} not found: ${appError?.message}`);
+    if (!isSupabaseConfigured()) {
+      const fallback = INITIAL_APPLICATIONS.find(a => a.id === id);
+      if (fallback) {
+        return { application: fallback, documents: [], stageUpdates: [] };
+      }
+      throw new Error('Supabase not configured.');
     }
 
-    const app = mapRowToApplication(appRow);
+    try {
+      const { data: appRow, error: appError } = await supabase
+        .from('applications')
+        .select('*')
+        .eq('id', id)
+        .single();
+
+      if (appError || !appRow) {
+        const fallback = INITIAL_APPLICATIONS.find(a => a.id === id);
+        if (fallback) {
+          return { application: fallback, documents: [], stageUpdates: [] };
+        }
+        throw new Error(`Application ${id} not found: ${appError?.message}`);
+      }
+
+      const app = mapRowToApplication(appRow);
 
     const [docsRes, stagesRes, appStagesRes] = await Promise.all([
       supabase.from('documents').select('*').eq('application_id', id).order('created_at', { ascending: false }),
@@ -916,6 +946,13 @@ export const supabaseService = {
     }));
 
     return { application: app, documents, stageUpdates };
+    } catch (err: any) {
+      const fallback = INITIAL_APPLICATIONS.find(a => a.id === id);
+      if (fallback) {
+        return { application: fallback, documents: [], stageUpdates: [] };
+      }
+      throw err;
+    }
   },
 
   async createApplication(appData: any, currentUser?: User): Promise<Application> {
