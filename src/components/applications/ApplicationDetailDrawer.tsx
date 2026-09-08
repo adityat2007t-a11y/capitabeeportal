@@ -18,11 +18,14 @@ import {
   Building2,
   FileCheck,
   Upload,
+  Key,
 } from 'lucide-react';
 import { Application, DocumentRecord, StageUpdateLog, StageInfo } from '../../types';
 import { StatusBadge } from '../common/Badge';
 import { StageUpdateModal } from './StageUpdateModal';
 import { DocumentRequestModal } from './DocumentRequestModal';
+import { CustomerPortalAccessModal, CustomerPortalCredentials } from './CustomerPortalAccessModal';
+import { supabase } from '../../lib/supabase';
 import { api } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import { WhatsAppActionModal } from '../common/WhatsAppActionModal';
@@ -69,6 +72,95 @@ export const ApplicationDetailDrawer: React.FC<ApplicationDetailDrawerProps> = (
   const [rejectingDocId, setRejectingDocId] = useState<string | null>(null);
   const [rejectionReason, setRejectionReason] = useState('');
   const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState(false);
+
+  // Customer Portal Access Modal
+  const [isPortalModalOpen, setIsPortalModalOpen] = useState(false);
+  const [portalCredentials, setPortalCredentials] = useState<CustomerPortalCredentials | null>(null);
+
+  const handleGrantPortalAccess = async () => {
+    if (!app) return;
+    const activeApplication = app;
+
+    // 1. Generate password
+    const generatedPassword = `CB-${Math.floor(100000 + Math.random() * 900000)}`;
+
+    // 2. Read customer_id, email, and mobile from active application object ensuring they do NOT render blank
+    const customer_id =
+      (activeApplication as any).customer_id ||
+      activeApplication.customerId ||
+      (activeApplication as any).borrower_id ||
+      activeApplication.id;
+
+    const mobile =
+      activeApplication.customerPhone ||
+      (activeApplication as any).mobile ||
+      (activeApplication as any).mobile_number ||
+      (activeApplication as any).phone ||
+      '';
+
+    const email =
+      activeApplication.customerEmail ||
+      (activeApplication as any).email ||
+      (activeApplication as any).customer_email ||
+      (mobile ? `${mobile.replace(/\D/g, '')}@capitabee.in` : 'customer@capitabee.in');
+
+    console.log('Granting portal access for active application:', {
+      applicationId: activeApplication.id,
+      customer_id,
+      email,
+      mobile,
+      generatedPassword,
+    });
+
+    // 3. DIRECT DATABASE SAVE on the applications table:
+    try {
+      const updatePayload = {
+        password: generatedPassword,
+        access_granted: true,
+        portal_access_enabled: true,
+      };
+
+      const { data, error } = await supabase
+        .from('applications')
+        .update(updatePayload)
+        .eq('id', activeApplication.id);
+
+      console.log('Direct Supabase update response for applications table:', {
+        data,
+        error,
+        applicationId: activeApplication.id,
+        updatePayload,
+        status: error ? 'ERROR' : 'SUCCESS',
+      });
+    } catch (sbErr) {
+      console.error('Direct Supabase applications update error:', sbErr);
+    }
+
+    setApp(prev =>
+      prev
+        ? {
+            ...prev,
+            password: generatedPassword,
+            access_granted: true,
+            portal_access_enabled: true,
+          }
+        : null
+    );
+
+    setPortalCredentials({
+      customer_id,
+      customerId: customer_id,
+      email,
+      identifier: email,
+      mobile,
+      phone: mobile,
+      temporaryPassword: generatedPassword,
+      customerName: activeApplication.customerName,
+      applicationId: activeApplication.id,
+    });
+
+    setIsPortalModalOpen(true);
+  };
 
   const triggerRefresh = () => {
     onUpdate?.();
@@ -218,6 +310,15 @@ export const ApplicationDetailDrawer: React.FC<ApplicationDetailDrawerProps> = (
           </div>
 
           <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleGrantPortalAccess}
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 sans-micro text-[10px] font-semibold uppercase tracking-wider text-[#8C6D37] bg-[#FAF6EC] border border-[#E8DCC0] hover:bg-[#F5EED8] hover:border-[#8C6D37] rounded-full transition-all cursor-pointer shadow-2xs"
+              title="Grant Customer Portal Access & Generate Temporary Password"
+            >
+              <Key className="w-3 h-3 text-[#B89758]" />
+              <span>Grant Access / Temporary Password</span>
+            </button>
             <button
               type="button"
               onClick={() => {
@@ -692,6 +793,13 @@ export const ApplicationDetailDrawer: React.FC<ApplicationDetailDrawerProps> = (
           onSuccess={() => loadData()}
         />
       )}
+
+      {/* Customer Portal Access Active Modal */}
+      <CustomerPortalAccessModal
+        isOpen={isPortalModalOpen}
+        onClose={() => setIsPortalModalOpen(false)}
+        credentials={portalCredentials}
+      />
     </div>
   );
 };

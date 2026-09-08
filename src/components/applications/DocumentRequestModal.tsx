@@ -5,13 +5,14 @@
 import React, { useState } from 'react';
 import { Files, AlertCircle } from 'lucide-react';
 import { Modal } from '../common/Modal';
-import { DocumentType } from '../../types';
+import { Application, DocumentType } from '../../types';
 import { api } from '../../services/api';
 
 interface DocumentRequestModalProps {
   isOpen: boolean;
   onClose: () => void;
-  applicationId: string | null;
+  applicationId?: string | null;
+  application?: Application | null;
   onSuccess: () => void;
 }
 
@@ -34,9 +35,11 @@ const STANDARD_DOC_TYPES: DocumentType[] = [
 export const DocumentRequestModal: React.FC<DocumentRequestModalProps> = ({
   isOpen,
   onClose,
-  applicationId,
+  applicationId: propAppId,
+  application,
   onSuccess,
 }) => {
+  const applicationId = propAppId || application?.id || null;
   const [docType, setDocType] = useState<DocumentType>('PAN Card');
   const [customName, setCustomName] = useState('');
   const [submitting, setSubmitting] = useState(false);

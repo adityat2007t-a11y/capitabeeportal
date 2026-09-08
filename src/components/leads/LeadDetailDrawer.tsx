@@ -24,20 +24,33 @@ import { useAuth } from '../../context/AuthContext';
 import { WhatsAppActionModal, WhatsAppTarget } from '../common/WhatsAppActionModal';
 
 interface LeadDetailDrawerProps {
-  leadId: string | null;
+  leadId?: string | null;
+  lead?: Lead | null;
+  isOpen?: boolean;
   onClose: () => void;
-  onUpdate: () => void;
-  onConvertToApplication: (lead: Lead) => void;
-  onOpenAssignModal: (lead: Lead) => void;
+  onUpdate?: () => void;
+  onRefresh?: () => void;
+  onConvertToApplication?: (lead: Lead) => void;
+  onOpenAssignModal?: (lead: Lead) => void;
+  onAssign?: (lead: Lead) => void;
+  onEdit?: (lead: Lead) => void;
 }
 
 export const LeadDetailDrawer: React.FC<LeadDetailDrawerProps> = ({
-  leadId,
+  leadId: propLeadId,
+  lead: propLead,
+  isOpen = true,
   onClose,
   onUpdate,
+  onRefresh,
   onConvertToApplication,
   onOpenAssignModal,
+  onAssign,
+  onEdit,
 }) => {
+  const leadId = propLeadId || propLead?.id || null;
+  const handleRefresh = onRefresh || onUpdate || (() => {});
+  const handleAssign = onAssign || onOpenAssignModal || (() => {});
   const { role, user } = useAuth();
   const [lead, setLead] = useState<Lead | null>(null);
   const [followUps, setFollowUps] = useState<FollowUp[]>([]);

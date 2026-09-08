@@ -2,7 +2,7 @@
  * Capitabee Financial Services CRM - Assign Lead Modal
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { UserCheck } from 'lucide-react';
 import { Modal } from '../common/Modal';
 import { Lead, User } from '../../types';
@@ -12,7 +12,7 @@ interface AssignLeadModalProps {
   isOpen: boolean;
   onClose: () => void;
   lead: Lead | null;
-  associates: User[];
+  associates?: User[];
   onSuccess: () => void;
 }
 
@@ -20,12 +20,25 @@ export const AssignLeadModal: React.FC<AssignLeadModalProps> = ({
   isOpen,
   onClose,
   lead,
-  associates,
+  associates: initialAssociates,
   onSuccess,
 }) => {
   const [selectedAssociateId, setSelectedAssociateId] = useState(lead?.assignedAssociateId || '');
+  const [associatesList, setAssociatesList] = useState<User[]>(initialAssociates || []);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (initialAssociates && initialAssociates.length > 0) {
+      setAssociatesList(initialAssociates);
+    } else if (isOpen) {
+      api.getAssociates().then(res => setAssociatesList(res.associates || [])).catch(() => {});
+    }
+  }, [isOpen, initialAssociates]);
+
+  useEffect(() => {
+    setSelectedAssociateId(lead?.assignedAssociateId || '');
+  }, [lead]);
 
   if (!lead) return null;
 
@@ -71,7 +84,7 @@ export const AssignLeadModal: React.FC<AssignLeadModalProps> = ({
             className="w-full px-3 py-2 text-sm bg-white border border-[#E8E1D5] rounded-lg focus:outline-hidden focus:border-[#D5A33A]"
           >
             <option value="">-- Unassign Lead --</option>
-            {associates.map(a => (
+            {associatesList.map(a => (
               <option key={a.id} value={a.id}>
                 {a.id} - {a.name} ({a.department} • Status: {a.status})
               </option>

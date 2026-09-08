@@ -149,6 +149,9 @@ export interface Application {
   expectedCompletionDate?: string;
   notes?: string;
   lenderPartner?: string;
+  password?: string;
+  access_granted?: boolean;
+  portal_access_enabled?: boolean;
 }
 
 export interface StageUpdateLog {

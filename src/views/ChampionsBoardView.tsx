@@ -44,7 +44,7 @@ export const ChampionsBoardView: React.FC = () => {
     const totalSanction = stats?.totalLoanValue ?? assocApps.reduce((acc, a) => acc + (a.sanctionAmount || 0), 0);
     const totalDisbursed = stats?.disbursedAmount ?? assocApps.reduce((acc, a) => acc + (a.disbursementAmount || 0), 0);
     const convertedLeads = stats?.disbursements ?? assocLeads.filter(
-      l => l.leadStatus === 'Application In Progress' || l.leadStatus === 'Sanctioned' || l.leadStatus === 'Disbursed'
+      l => l.leadStatus === 'Application Started' || l.leadStatus === 'Application Submitted' || l.leadStatus === 'In Process' || l.leadStatus === 'Sanctioned' || l.leadStatus === 'Disbursed'
     ).length;
 
     const target = stats?.target || assoc.monthlyTarget || 2500000;

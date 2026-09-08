@@ -8,6 +8,15 @@ import path from 'node:path';
 import { createServer as createViteServer } from 'vite';
 import { apiRouter } from './server/routes';
 
+// Prevent unhandled promise rejections from crashing the dev server
+process.on('unhandledRejection', (reason, promise) => {
+  console.warn('Unhandled Rejection at:', promise, 'reason:', reason);
+});
+
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught Exception:', err);
+});
+
 async function startServer() {
   const app = express();
   const PORT = 3000;
@@ -27,6 +36,17 @@ async function startServer() {
 
   // Mount API router
   app.use('/api', apiRouter);
+
+  // Global API error handler
+  app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+    console.error('Express server caught error:', err);
+    if (res.headersSent) {
+      return next(err);
+    }
+    res.status(err.status || 500).json({
+      error: err.message || 'Internal Server Error',
+    });
+  });
 
   // Vite middleware for development vs static build in production
   if (process.env.NODE_ENV !== 'production') {

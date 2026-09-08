@@ -30,6 +30,7 @@ import { Customer, User } from '../types';
 import { supabase, isSupabaseConfigured, SUPABASE_URL } from '../lib/supabase';
 import { supabaseService } from '../services/supabaseService';
 import { api } from '../services/api';
+import { CustomerPortalAccessModal, CustomerPortalCredentials } from '../components/applications/CustomerPortalAccessModal';
 
 export const CustomersView: React.FC = () => {
   const { role, user } = useAuth();
@@ -70,7 +71,7 @@ export const CustomersView: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [isPortalModalOpen, setIsPortalModalOpen] = useState(false);
-  const [portalCredentials, setPortalCredentials] = useState<{ identifier: string; mobile: string; temporaryPassword: string } | null>(null);
+  const [portalCredentials, setPortalCredentials] = useState<CustomerPortalCredentials | null>(null);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -235,7 +236,7 @@ export const CustomersView: React.FC = () => {
       state: cust.state || 'Maharashtra',
       pan: cust.pan || '',
       aadhaarLast4: cust.aadhaarLast4 || '',
-      employmentType: cust.employmentType || 'Salaried',
+      employmentType: ((cust.employmentType as any) || 'Salaried') as 'Salaried' | 'Self Employed' | 'Business Owner' | 'Professional',
       monthlyIncome: cust.monthlyIncome || 50000,
       assignedAssociateId: cust.assignedAssociateId || '',
       assignedPartnerId: cust.assignedPartnerId || '',
@@ -262,8 +263,8 @@ export const CustomersView: React.FC = () => {
                 name: formData.name,
                 mobile: formData.mobile,
                 email: formData.email || null,
-                pan_number: formData.panNumber || null,
-                aadhaar_number: formData.aadhaarNumber || null,
+                pan_number: formData.pan || null,
+                aadhaar_number: formData.aadhaarLast4 || null,
                 city: formData.city || null,
                 state: formData.state || null,
                 employment_type: formData.employmentType || null,
@@ -284,8 +285,8 @@ export const CustomersView: React.FC = () => {
                 name: formData.name,
                 mobile: formData.mobile,
                 email: formData.email || null,
-                pan_number: formData.panNumber || null,
-                aadhaar_number: formData.aadhaarNumber || null,
+                pan_number: formData.pan || null,
+                aadhaar_number: formData.aadhaarLast4 || null,
                 city: formData.city || null,
                 state: formData.state || null,
                 employment_type: formData.employmentType || null,
@@ -323,11 +324,56 @@ export const CustomersView: React.FC = () => {
     setAlertMsg(null);
 
     try {
-      const pwd = portalPassword || cust.mobile.slice(-6) || '123456';
+      const generatedPassword = `CB-${Math.floor(100000 + Math.random() * 900000)}`;
+      const customer_id = cust.id || cust.customerId || 'CUST-ACTIVE';
+      const mobile = cust.mobile || (cust as any).phone || '';
+      const email = cust.email || (mobile ? `${mobile.replace(/\D/g, '')}@capitabee.in` : 'customer@capitabee.in');
+
+      console.log('Granting portal access for customer:', {
+        customerId: cust.id,
+        customer_id,
+        email,
+        mobile,
+        generatedPassword,
+      });
+
+      // DIRECT DATABASE SAVE:
+      // Update applications table directly in Supabase
+      if (isSupabaseConfigured()) {
+        try {
+          const updatePayload = {
+            password: generatedPassword,
+            access_granted: true,
+            portal_access_enabled: true,
+          };
+
+          // Update any application record matching this customer ID or mobile
+          const { data, error } = await supabase
+            .from('applications')
+            .update(updatePayload)
+            .or(`customer_id.eq.${cust.id},mobile_number.eq.${cust.mobile},mobile.eq.${cust.mobile},applicant_name.eq.${cust.name}`);
+
+          console.log('Direct Supabase applications update response:', {
+            data,
+            error,
+            customerId: cust.id,
+            mobile: cust.mobile,
+            updatePayload,
+            status: error ? 'ERROR' : 'SUCCESS',
+          });
+        } catch (sbErr) {
+          console.error('Direct Supabase applications update error for customer:', sbErr);
+        }
+      }
+
       setPortalCredentials({
-        loginUrl: `${window.location.origin}/portal`,
-        email: cust.email || `${cust.mobile}@capitabee.in`,
-        temporaryPassword: pwd,
+        customer_id,
+        customerId: customer_id,
+        email,
+        identifier: email,
+        mobile,
+        phone: mobile,
+        temporaryPassword: generatedPassword,
         customerName: cust.name,
       });
       setIsPortalModalOpen(true);
@@ -877,53 +923,11 @@ export const CustomersView: React.FC = () => {
       )}
 
       {/* PORTAL ACCESS CREDENTIALS DIALOG */}
-      {isPortalModalOpen && portalCredentials && (
-        <div className="fixed inset-0 z-50 bg-[#121212]/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white w-full max-w-md rounded-2xl border border-[#E8E6E1] shadow-2xl p-6 relative">
-            <button
-              onClick={() => setIsPortalModalOpen(false)}
-              className="absolute right-4 top-4 p-1.5 text-[#888888] hover:text-[#121212] rounded-lg"
-            >
-              <X className="w-5 h-5" />
-            </button>
-
-            <div className="flex items-center gap-2 mb-2">
-              <ShieldCheck className="w-5 h-5 text-emerald-600" />
-              <h3 className="serif-display text-lg font-medium text-[#121212]">
-                Customer Portal Access Active
-              </h3>
-            </div>
-            <p className="text-xs text-[#5A5854] mb-4">
-              Share these credentials with the customer to allow them to view their 12-stage loan tracking portal.
-            </p>
-
-            <div className="bg-[#FAF9F6] p-4 rounded-xl border border-[#E8E6E1] space-y-2.5 font-mono text-xs mb-4">
-              <div className="flex justify-between">
-                <span className="text-[#888888]">Login ID / Email:</span>
-                <span className="font-bold text-[#121212]">{portalCredentials.identifier}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-[#888888]">Registered Mobile:</span>
-                <span className="font-bold text-[#121212]">{portalCredentials.mobile}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-[#888888]">Temporary Password:</span>
-                <span className="font-bold text-[#8C6D37] bg-[#B89758]/20 px-2 py-0.5 rounded">
-                  {portalCredentials.temporaryPassword}
-                </span>
-              </div>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => setIsPortalModalOpen(false)}
-              className="w-full py-2 bg-[#121212] text-white text-xs font-semibold rounded-xl"
-            >
-              Done & Close
-            </button>
-          </div>
-        </div>
-      )}
+      <CustomerPortalAccessModal
+        isOpen={isPortalModalOpen}
+        onClose={() => setIsPortalModalOpen(false)}
+        credentials={portalCredentials}
+      />
     </div>
   );
 };

@@ -16,6 +16,7 @@ import {
   RefreshCw,
   AlertCircle,
   Database,
+  Key,
 } from 'lucide-react';
 import { StatusBadge } from '../components/common/Badge';
 import { EmptyState } from '../components/common/EmptyState';
@@ -24,8 +25,8 @@ import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { Application, User, StageInfo, StageStatus } from '../types';
 import { STAGES_12, INITIAL_LOAN_PRODUCTS } from '../config/brand';
-import { INITIAL_APPLICATIONS } from '../config/initialApplications';
 import { WhatsAppActionModal, WhatsAppTarget } from '../components/common/WhatsAppActionModal';
+import { CustomerPortalAccessModal, CustomerPortalCredentials } from '../components/applications/CustomerPortalAccessModal';
 
 interface ApplicationsViewProps {
   onOpenNewApp: () => void;
@@ -109,6 +110,94 @@ export const ApplicationsView: React.FC<ApplicationsViewProps> = ({
   const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState(false);
   const [copiedSql, setCopiedSql] = useState(false);
 
+  // Customer Portal Access Modal
+  const [isPortalModalOpen, setIsPortalModalOpen] = useState(false);
+  const [portalCredentials, setPortalCredentials] = useState<CustomerPortalCredentials | null>(null);
+
+  const handleGrantPortalAccess = async (activeApplication: Application) => {
+    // 1. Generate password
+    const generatedPassword = `CB-${Math.floor(100000 + Math.random() * 900000)}`;
+
+    // 2. Read customer_id, email, and mobile from active application object ensuring they do NOT render blank
+    const customer_id =
+      (activeApplication as any).customer_id ||
+      activeApplication.customerId ||
+      (activeApplication as any).borrower_id ||
+      activeApplication.id;
+
+    const mobile =
+      activeApplication.customerPhone ||
+      (activeApplication as any).mobile ||
+      (activeApplication as any).mobile_number ||
+      (activeApplication as any).phone ||
+      '';
+
+    const email =
+      activeApplication.customerEmail ||
+      (activeApplication as any).email ||
+      (activeApplication as any).customer_email ||
+      (mobile ? `${mobile.replace(/\D/g, '')}@capitabee.in` : 'customer@capitabee.in');
+
+    console.log('Granting portal access for active application from ApplicationsView:', {
+      applicationId: activeApplication.id,
+      customer_id,
+      email,
+      mobile,
+      generatedPassword,
+    });
+
+    // 3. DIRECT DATABASE SAVE on the applications table:
+    try {
+      const updatePayload = {
+        password: generatedPassword,
+        access_granted: true,
+        portal_access_enabled: true,
+      };
+
+      const { data, error } = await supabase
+        .from('applications')
+        .update(updatePayload)
+        .eq('id', activeApplication.id);
+
+      console.log('Direct Supabase update response for applications table:', {
+        data,
+        error,
+        applicationId: activeApplication.id,
+        updatePayload,
+        status: error ? 'ERROR' : 'SUCCESS',
+      });
+    } catch (sbErr) {
+      console.error('Direct Supabase applications update error:', sbErr);
+    }
+
+    setApps(prev =>
+      prev.map(a =>
+        a.id === activeApplication.id
+          ? {
+              ...a,
+              password: generatedPassword,
+              access_granted: true,
+              portal_access_enabled: true,
+            }
+          : a
+      )
+    );
+
+    setPortalCredentials({
+      customer_id,
+      customerId: customer_id,
+      email,
+      identifier: email,
+      mobile,
+      phone: mobile,
+      temporaryPassword: generatedPassword,
+      customerName: activeApplication.customerName,
+      applicationId: activeApplication.id,
+    });
+
+    setIsPortalModalOpen(true);
+  };
+
   const handleCopySql = () => {
     const sql = 'GRANT USAGE ON SCHEMA public TO anon, authenticated;\nGRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated;\nGRANT ALL ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated;\nALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO anon, authenticated;';
     navigator.clipboard.writeText(sql);
@@ -132,7 +221,7 @@ export const ApplicationsView: React.FC<ApplicationsViewProps> = ({
             queryError: `${error.code || '42501'}: ${error.message} (Grant required: GRANT SELECT ON public.applications TO anon;)`,
             returnedIds: [],
           });
-          setApps(INITIAL_APPLICATIONS);
+          setApps([]);
           return;
         }
 
@@ -142,7 +231,7 @@ export const ApplicationsView: React.FC<ApplicationsViewProps> = ({
             queryError: null,
             returnedIds: [],
           });
-          setApps(INITIAL_APPLICATIONS);
+          setApps([]);
           return;
         }
 
@@ -158,7 +247,7 @@ export const ApplicationsView: React.FC<ApplicationsViewProps> = ({
 
       // Direct fallback via api layer
       const res = await api.getApplications();
-      const serverApps = (res?.applications && res.applications.length > 0) ? res.applications : INITIAL_APPLICATIONS;
+      const serverApps = res?.applications || [];
       const ids = serverApps.map(a => a.id);
 
       setDiagnostic({
@@ -174,7 +263,7 @@ export const ApplicationsView: React.FC<ApplicationsViewProps> = ({
         queryError: err?.message || String(err),
         returnedIds: [],
       });
-      setApps(INITIAL_APPLICATIONS);
+      setApps([]);
     } finally {
       setLoading(false);
     }
@@ -458,11 +547,11 @@ export const ApplicationsView: React.FC<ApplicationsViewProps> = ({
           </div>
         ) : filteredApps.length === 0 ? (
           <EmptyState
-            title="No applications returned from Supabase table 'applications'."
+            title="No loan applications found"
             description={
-              search || stageFilter !== 'All'
+              search || stageFilter !== 'All' || statusFilter !== 'All' || productFilter !== 'All'
                 ? 'Try adjusting your search criteria or active filters.'
-                : 'Zero records in public.applications. Once an application is submitted, it will be rendered here directly.'
+                : 'All demo applications have been removed. Click "+ Start Application" to create your first real loan application.'
             }
             actionText={search ? undefined : '+ Start Application'}
             onAction={onOpenNewApp}
@@ -597,6 +686,18 @@ export const ApplicationsView: React.FC<ApplicationsViewProps> = ({
 
                           <button
                             type="button"
+                            onClick={e => {
+                              e.stopPropagation();
+                              handleGrantPortalAccess(app);
+                            }}
+                            className="w-7 h-7 rounded-full border border-[#E8DCC0] bg-[#FAF6EC] hover:bg-[#F5EED8] hover:border-[#8C6D37] flex items-center justify-center text-[#8C6D37] transition-colors cursor-pointer"
+                            title="Grant Portal Access / Temporary Password"
+                          >
+                            <Key className="w-3 h-3 text-[#B89758]" />
+                          </button>
+
+                          <button
+                            type="button"
                             onClick={() => onSelectApp(app)}
                             className="p-1.5 text-[#888888] hover:text-[#121212] rounded-full cursor-pointer"
                           >
@@ -621,6 +722,13 @@ export const ApplicationsView: React.FC<ApplicationsViewProps> = ({
           setWhatsappTarget(null);
         }}
         target={whatsappTarget}
+      />
+
+      {/* Customer Portal Access Modal */}
+      <CustomerPortalAccessModal
+        isOpen={isPortalModalOpen}
+        onClose={() => setIsPortalModalOpen(false)}
+        credentials={portalCredentials}
       />
     </div>
   );

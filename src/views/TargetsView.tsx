@@ -97,7 +97,22 @@ export const TargetsView: React.FC = () => {
       }
 
       const res = await api.getTargets(selectedMonth);
-      setTargets(res.targets || []);
+      const mappedTargets: TargetItem[] = (res.targets || []).map((t: any) => ({
+        id: t.id,
+        userId: t.associateId || t.userId || t.id,
+        userName: t.associateName || t.userName || 'Associate',
+        role: t.role || 'Associate',
+        month: t.monthYear || t.month || selectedMonth,
+        targetAmount: t.targetAmount || 0,
+        targetCount: t.targetApplications || t.targetCount || 0,
+        targetCustomers: t.targetCustomers || 0,
+        achievedAmount: t.achievedAmount || 0,
+        achievedCount: t.achievedApplications || t.achievedCount || 0,
+        achievedCustomers: t.achievedCustomers || 0,
+        achievementRate: t.targetAmount > 0 ? Math.round((t.achievedAmount / t.targetAmount) * 100) : 0,
+        status: (t.achievedAmount >= t.targetAmount && t.targetAmount > 0) ? 'Achieved' : (t.achievedAmount < t.targetAmount * 0.5 ? 'Behind' : 'In Progress'),
+      }));
+      setTargets(mappedTargets);
     } catch (err) {
       console.error('Error fetching targets:', err);
     } finally {

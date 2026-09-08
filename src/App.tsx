@@ -43,6 +43,7 @@ import { StageUpdateModal } from './components/applications/StageUpdateModal';
 import { DocumentRequestModal } from './components/applications/DocumentRequestModal';
 import { AssociateModal } from './components/associates/AssociateModal';
 import { CibilCheckModal } from './components/cibil/CibilCheckModal';
+import { ErrorBoundary } from './components/common/ErrorBoundary';
 
 // Types & Brand
 import { Lead, Application, User } from './types';
@@ -198,6 +199,7 @@ const AppContent: React.FC = () => {
 
         {/* Dynamic View Container */}
         <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto max-w-7xl mx-auto w-full lg:ml-64 relative">
+          <ErrorBoundary fallbackTitle="View Loading Error">
           {/* Admin Views */}
           {role === 'ADMIN' && (
             <>
@@ -453,6 +455,7 @@ const AppContent: React.FC = () => {
               )}
             </>
           )}
+          </ErrorBoundary>
         </main>
       </div>
 
@@ -588,8 +591,10 @@ const AppContent: React.FC = () => {
 
 export default function App() {
   return (
-    <AuthProvider>
-      <AppContent />
-    </AuthProvider>
+    <ErrorBoundary fallbackTitle="Application Encountered an Issue">
+      <AuthProvider>
+        <AppContent />
+      </AuthProvider>
+    </ErrorBoundary>
   );
 }

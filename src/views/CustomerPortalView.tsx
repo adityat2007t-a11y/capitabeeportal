@@ -106,7 +106,7 @@ export const CustomerPortalView: React.FC = () => {
         api.getReviews(),
       ]);
 
-      const myPhone = user?.phone || user?.mobile;
+      const myPhone = (user as any)?.phone || user?.mobile;
       const myEmail = user?.email;
       const myApps = (appsRes.applications || []).filter(
         a => (user?.id && (a.customerId === user.id || a.id === user.id)) ||
@@ -491,13 +491,13 @@ export const CustomerPortalView: React.FC = () => {
                                 {doc.documentType}
                               </span>
                               <span className="text-[10px] text-[#888888]">
-                                {doc.originalFileName || `${doc.documentType}.pdf`} • {doc.verified ? 'Verified by Executive' : 'Under Verification'}
+                                {(doc as any).originalFileName || doc.fileName || `${doc.documentType}.pdf`} • {doc.status === 'Verified' ? 'Verified by Executive' : 'Under Verification'}
                               </span>
                             </div>
                           </div>
                           <span
                             className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
-                              doc.verified
+                              doc.status === 'Verified'
                                 ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                                 : 'bg-amber-50 text-amber-700 border border-amber-200'
                             }`}
@@ -541,7 +541,7 @@ export const CustomerPortalView: React.FC = () => {
                           <div className="flex items-center justify-between gap-4 mb-1">
                             <span className="font-semibold text-[10px] opacity-80">{msg.senderName}</span>
                             <span className="text-[9px] opacity-60">
-                              {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              {new Date((msg as any).timestamp || msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                             </span>
                           </div>
                           <p>{msg.message}</p>

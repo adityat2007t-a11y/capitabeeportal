@@ -24,7 +24,6 @@ import {
 } from '../types';
 import { supabaseService } from './supabaseService';
 import { isSupabaseConfigured } from '../lib/supabase';
-import { INITIAL_APPLICATIONS } from '../config/initialApplications';
 
 const BASE_URL = '/api';
 
@@ -609,7 +608,7 @@ export const api = {
       // Backend not running
     }
 
-    return { applications: INITIAL_APPLICATIONS };
+    return { applications: [] };
   },
 
   async submitWebsiteLead(leadData: any): Promise<{ success: boolean; leadId: string; message: string }> {

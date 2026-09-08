@@ -148,7 +148,9 @@ export const Navbar: React.FC<NavbarProps> = ({
                 {user?.name}
               </span>
               {role === 'ADMIN' ? (
-                <ShieldCheck className="w-3.5 h-3.5 text-[#B89758]" title="Administrator" />
+                <span title="Administrator" className="inline-flex items-center">
+                  <ShieldCheck className="w-3.5 h-3.5 text-[#B89758]" />
+                </span>
               ) : (
                 <span className="text-[10px] font-mono text-[#888888]">({user?.id})</span>
               )}

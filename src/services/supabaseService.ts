@@ -30,7 +30,6 @@ import {
   StageStatus,
 } from '../types';
 import { LOAN_STAGES } from '../config/brand';
-import { INITIAL_APPLICATIONS } from '../config/initialApplications';
 
 const metaEnv = (import.meta as any).env || {};
 
@@ -816,7 +815,7 @@ export const supabaseService = {
     search?: string;
     limit?: number;
   }): Promise<Application[]> {
-    if (!isSupabaseConfigured()) return INITIAL_APPLICATIONS;
+    if (!isSupabaseConfigured()) return [];
 
     let apps: Application[] = [];
 
@@ -839,15 +838,15 @@ export const supabaseService = {
       const { data, error } = await query;
       if (error) {
         console.warn('Supabase Application Fetch Notice (table privilege or RLS check):', error.message || error);
-        apps = [...INITIAL_APPLICATIONS];
+        apps = [];
       } else if (!data || data.length === 0) {
-        apps = [...INITIAL_APPLICATIONS];
+        apps = [];
       } else {
         apps = data.map(mapRowToApplication);
       }
     } catch (err: any) {
       console.warn('Supabase Application Fetch Notice:', err?.message || err);
-      apps = [...INITIAL_APPLICATIONS];
+      apps = [];
     }
 
     if (filters?.assignedAssociateId) {
@@ -881,10 +880,6 @@ export const supabaseService = {
     stageUpdates: StageUpdateLog[];
   }> {
     if (!isSupabaseConfigured()) {
-      const fallback = INITIAL_APPLICATIONS.find(a => a.id === id);
-      if (fallback) {
-        return { application: fallback, documents: [], stageUpdates: [] };
-      }
       throw new Error('Supabase not configured.');
     }
 
@@ -896,11 +891,7 @@ export const supabaseService = {
         .single();
 
       if (appError || !appRow) {
-        const fallback = INITIAL_APPLICATIONS.find(a => a.id === id);
-        if (fallback) {
-          return { application: fallback, documents: [], stageUpdates: [] };
-        }
-        throw new Error(`Application ${id} not found: ${appError?.message}`);
+        throw new Error(`Application ${id} not found: ${appError?.message || 'Record not found'}`);
       }
 
       const app = mapRowToApplication(appRow);
@@ -947,10 +938,6 @@ export const supabaseService = {
 
     return { application: app, documents, stageUpdates };
     } catch (err: any) {
-      const fallback = INITIAL_APPLICATIONS.find(a => a.id === id);
-      if (fallback) {
-        return { application: fallback, documents: [], stageUpdates: [] };
-      }
       throw err;
     }
   },

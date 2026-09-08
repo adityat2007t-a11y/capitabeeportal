@@ -13,8 +13,10 @@ import { useAuth } from '../../context/AuthContext';
 interface ApplicationModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSuccess: (app: Application) => void;
+  onSuccess: (app?: any) => void;
   fromLead?: Lead | null;
+  leadPrefill?: Lead | null;
+  initialApp?: Application | null;
   associates?: User[];
 }
 
@@ -23,8 +25,11 @@ export const ApplicationModal: React.FC<ApplicationModalProps> = ({
   onClose,
   onSuccess,
   fromLead,
+  leadPrefill,
+  initialApp,
   associates = [],
 }) => {
+  const effectiveLead = leadPrefill || fromLead;
   const { role, user } = useAuth();
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
@@ -41,16 +46,27 @@ export const ApplicationModal: React.FC<ApplicationModalProps> = ({
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (fromLead) {
-      setCustomerName(fromLead.customerName);
-      setCustomerPhone(fromLead.mobile);
-      setCustomerEmail(fromLead.email || '');
-      setCity(fromLead.city || '');
-      setState(fromLead.state || '');
-      setLoanType(fromLead.loanType);
-      setRequestedAmount(String(fromLead.requiredAmount || ''));
-      setAssignedAssociateId(fromLead.assignedAssociateId || '');
-      setNotes(`Initiated from Lead: ${fromLead.id}`);
+    if (initialApp) {
+      setCustomerName(initialApp.customerName);
+      setCustomerPhone(initialApp.customerPhone || '');
+      setCustomerEmail(initialApp.customerEmail || '');
+      setCity(initialApp.city || '');
+      setState(initialApp.state || '');
+      setLoanType(initialApp.loanType);
+      setRequestedAmount(String(initialApp.requestedAmount || ''));
+      setLenderPartner(initialApp.lenderPartner || '');
+      setAssignedAssociateId(initialApp.assignedAssociateId || '');
+      setNotes(initialApp.notes || '');
+    } else if (effectiveLead) {
+      setCustomerName(effectiveLead.customerName);
+      setCustomerPhone(effectiveLead.mobile);
+      setCustomerEmail(effectiveLead.email || '');
+      setCity(effectiveLead.city || '');
+      setState(effectiveLead.state || '');
+      setLoanType(effectiveLead.loanType);
+      setRequestedAmount(String(effectiveLead.requiredAmount || ''));
+      setAssignedAssociateId(effectiveLead.assignedAssociateId || '');
+      setNotes(`Initiated from Lead: ${effectiveLead.id}`);
     } else {
       setCustomerName('');
       setCustomerPhone('');
@@ -64,7 +80,7 @@ export const ApplicationModal: React.FC<ApplicationModalProps> = ({
       setNotes('');
     }
     setError(null);
-  }, [fromLead, isOpen, role, user]);
+  }, [effectiveLead, initialApp, isOpen, role, user]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
