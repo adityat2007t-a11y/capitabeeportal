@@ -37,15 +37,22 @@ const metaEnv = (import.meta as any).env || {};
  * Maps database row (snake_case) to TypeScript User model
  */
 function mapProfileToUser(row: any): User {
+  const roleRaw = (row.role || '').toUpperCase();
+  let role: UserRole = 'ASSOCIATE';
+  if (roleRaw === 'ADMIN') role = 'ADMIN';
+  else if (roleRaw === 'CUSTOMER') role = 'CUSTOMER';
+  else if (roleRaw === 'PARTNER') role = 'PARTNER';
+  else if (roleRaw === 'EMPLOYEE') role = 'EMPLOYEE';
+
   return {
     id: row.id || row.user_id || row.employee_id,
     name: row.name || row.full_name || 'User',
     email: row.email || '',
     mobile: row.mobile || row.phone || '',
-    role: (row.role?.toUpperCase() === 'ADMIN' ? 'ADMIN' : 'ASSOCIATE') as UserRole,
+    role,
     employeeId: row.employee_id || row.id,
-    department: row.department || 'Loan Operations',
-    designation: row.designation || (row.role === 'ADMIN' ? 'System Administrator' : 'Loan Relationship Associate'),
+    department: row.department || (role === 'CUSTOMER' ? 'Customer Portal' : 'Loan Operations'),
+    designation: row.designation || (role === 'ADMIN' ? 'System Administrator' : role === 'CUSTOMER' ? 'Borrower' : 'Loan Relationship Associate'),
     status: row.status || 'Active',
     onlineStatus: row.online_status || 'Offline',
     target: row.target || row.monthly_target || 5000000,
@@ -261,12 +268,21 @@ export const supabaseService = {
     if (profileData && !profileError) {
       userObj = mapProfileToUser(profileData);
     } else {
+      const metaRole = (authData.user.user_metadata?.role || '').toUpperCase();
+      let role: UserRole = 'ASSOCIATE';
+      if (metaRole === 'ADMIN') role = 'ADMIN';
+      else if (metaRole === 'CUSTOMER') role = 'CUSTOMER';
+      else if (metaRole === 'PARTNER') role = 'PARTNER';
+      else if (metaRole === 'EMPLOYEE') role = 'EMPLOYEE';
+
       userObj = {
         id: authData.user.id,
         name: authData.user.user_metadata?.full_name || authData.user.email?.split('@')[0] || 'User',
         email: authData.user.email || email,
-        mobile: authData.user.user_metadata?.mobile || '',
-        role: (authData.user.user_metadata?.role?.toUpperCase() === 'ADMIN' ? 'ADMIN' : 'ASSOCIATE') as UserRole,
+        mobile: authData.user.user_metadata?.mobile || authData.user.user_metadata?.mobile_number || '',
+        role,
+        department: role === 'CUSTOMER' ? 'Customer Portal' : 'Loan Operations',
+        designation: role === 'ADMIN' ? 'System Administrator' : role === 'CUSTOMER' ? 'Borrower' : 'Loan Relationship Associate',
         status: 'Active',
         onlineStatus: 'Online',
         createdAt: authData.user.created_at || new Date().toISOString(),
@@ -356,12 +372,21 @@ export const supabaseService = {
         return mapProfileToUser(profile);
       }
 
+      const metaRole = (authData.user.user_metadata?.role || '').toUpperCase();
+      let role: UserRole = 'ASSOCIATE';
+      if (metaRole === 'ADMIN') role = 'ADMIN';
+      else if (metaRole === 'CUSTOMER') role = 'CUSTOMER';
+      else if (metaRole === 'PARTNER') role = 'PARTNER';
+      else if (metaRole === 'EMPLOYEE') role = 'EMPLOYEE';
+
       return {
         id: authData.user.id,
         name: authData.user.user_metadata?.full_name || authData.user.email?.split('@')[0] || 'User',
         email: authData.user.email || '',
-        mobile: authData.user.user_metadata?.mobile || '',
-        role: (authData.user.user_metadata?.role?.toUpperCase() === 'ADMIN' ? 'ADMIN' : 'ASSOCIATE') as UserRole,
+        mobile: authData.user.user_metadata?.mobile || authData.user.user_metadata?.mobile_number || '',
+        role,
+        department: role === 'CUSTOMER' ? 'Customer Portal' : 'Loan Operations',
+        designation: role === 'ADMIN' ? 'System Administrator' : role === 'CUSTOMER' ? 'Borrower' : 'Loan Relationship Associate',
         status: 'Active',
         onlineStatus: 'Online',
         createdAt: authData.user.created_at || new Date().toISOString(),

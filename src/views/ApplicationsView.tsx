@@ -115,8 +115,14 @@ export const ApplicationsView: React.FC<ApplicationsViewProps> = ({
   const [portalCredentials, setPortalCredentials] = useState<CustomerPortalCredentials | null>(null);
 
   const handleGrantPortalAccess = async (activeApplication: Application) => {
-    // 1. Generate password
+    // 1. FORCE TRIM AND LOWERCASE MATCHING
     const generatedPassword = `CB-${Math.floor(100000 + Math.random() * 900000)}`;
+    const rawEmail =
+      activeApplication.customerEmail ||
+      (activeApplication as any).email ||
+      (activeApplication as any).customer_email ||
+      '';
+    const targetEmail = rawEmail ? rawEmail.trim().toLowerCase() : '';
 
     // 2. Read customer_id, email, and mobile from active application object ensuring they do NOT render blank
     const customer_id =
@@ -132,70 +138,56 @@ export const ApplicationsView: React.FC<ApplicationsViewProps> = ({
       (activeApplication as any).phone ||
       '';
 
-    const email =
-      activeApplication.customerEmail ||
-      (activeApplication as any).email ||
-      (activeApplication as any).customer_email ||
-      (mobile ? `${mobile.replace(/\D/g, '')}@capitabee.in` : 'customer@capitabee.in');
+    const finalEmail = targetEmail || (mobile ? `${mobile.replace(/\D/g, '')}@capitabee.in` : 'customer@capitabee.in');
 
     console.log('Granting portal access for active application from ApplicationsView:', {
       applicationId: activeApplication.id,
       customer_id,
-      email,
+      targetEmail,
+      finalEmail,
       mobile,
       generatedPassword,
     });
 
-    // 3. DIRECT DATABASE SAVE on the applications table:
     try {
-      const updatePayload = {
-        password: generatedPassword,
-        access_granted: true,
-        portal_access_enabled: true,
-      };
+      // Call backend API which uses Supabase Admin Auth API to create/update user and set real password
+      const response = await api.grantPortalAccess(customer_id || activeApplication.id, generatedPassword);
 
-      const { data, error } = await supabase
-        .from('applications')
-        .update(updatePayload)
-        .eq('id', activeApplication.id);
+      if (!response.success && !response.loginCredentials) {
+        alert(response.message || 'Failed to provision Supabase Auth credentials for customer portal.');
+        return;
+      }
 
-      console.log('Direct Supabase update response for applications table:', {
-        data,
-        error,
+      setApps(prev =>
+        prev.map(a =>
+          a.id === activeApplication.id
+            ? {
+                ...a,
+                access_granted: true,
+                portal_access_enabled: true,
+              }
+            : a
+        )
+      );
+
+      const returnedCreds: any = response?.loginCredentials || {};
+      setPortalCredentials({
+        customer_id: returnedCreds.customer_id || customer_id,
+        customerId: returnedCreds.customerId || customer_id,
+        email: returnedCreds.email || finalEmail,
+        identifier: returnedCreds.identifier || finalEmail,
+        mobile: returnedCreds.mobile || mobile,
+        phone: returnedCreds.mobile || mobile,
+        temporaryPassword: returnedCreds.temporaryPassword || generatedPassword,
+        customerName: activeApplication.customerName,
         applicationId: activeApplication.id,
-        updatePayload,
-        status: error ? 'ERROR' : 'SUCCESS',
       });
-    } catch (sbErr) {
-      console.error('Direct Supabase applications update error:', sbErr);
+
+      setIsPortalModalOpen(true);
+    } catch (err: any) {
+      console.error('Portal access grant error:', err);
+      alert('Error activating Customer Portal access: ' + (err.message || 'Server error.'));
     }
-
-    setApps(prev =>
-      prev.map(a =>
-        a.id === activeApplication.id
-          ? {
-              ...a,
-              password: generatedPassword,
-              access_granted: true,
-              portal_access_enabled: true,
-            }
-          : a
-      )
-    );
-
-    setPortalCredentials({
-      customer_id,
-      customerId: customer_id,
-      email,
-      identifier: email,
-      mobile,
-      phone: mobile,
-      temporaryPassword: generatedPassword,
-      customerName: activeApplication.customerName,
-      applicationId: activeApplication.id,
-    });
-
-    setIsPortalModalOpen(true);
   };
 
   const handleCopySql = () => {

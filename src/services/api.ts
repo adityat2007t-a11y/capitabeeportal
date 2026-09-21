@@ -933,6 +933,30 @@ export const api = {
     return { customers: [] };
   },
 
+  async grantPortalAccess(
+    customerId: string,
+    password?: string
+  ): Promise<{
+    success: boolean;
+    message: string;
+    auth_user_id?: string;
+    loginCredentials: {
+      customerId: string;
+      customer_id: string;
+      email: string;
+      identifier: string;
+      mobile: string;
+      temporaryPassword?: string;
+    };
+  }> {
+    const res = await fetch(`${BASE_URL}/customers/${customerId}/portal-access`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ password }),
+    });
+    return handleResponse(res);
+  },
+
   // -------------------------------------------------------------
   // REVIEWS & FEEDBACK
   // -------------------------------------------------------------

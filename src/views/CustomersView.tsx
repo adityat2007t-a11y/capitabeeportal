@@ -324,58 +324,54 @@ export const CustomersView: React.FC = () => {
     setAlertMsg(null);
 
     try {
+      // 1. FORCE TRIM AND LOWERCASE MATCHING
       const generatedPassword = `CB-${Math.floor(100000 + Math.random() * 900000)}`;
+      const rawEmail = cust.email || '';
+      const targetEmail = rawEmail ? rawEmail.trim().toLowerCase() : '';
+
       const customer_id = cust.id || cust.customerId || 'CUST-ACTIVE';
       const mobile = cust.mobile || (cust as any).phone || '';
-      const email = cust.email || (mobile ? `${mobile.replace(/\D/g, '')}@capitabee.in` : 'customer@capitabee.in');
+      const finalEmail = targetEmail || (mobile ? `${mobile.replace(/\D/g, '')}@capitabee.in` : 'customer@capitabee.in');
 
       console.log('Granting portal access for customer:', {
         customerId: cust.id,
         customer_id,
-        email,
+        targetEmail,
+        finalEmail,
         mobile,
         generatedPassword,
       });
 
-      // DIRECT DATABASE SAVE:
-      // Update applications table directly in Supabase
-      if (isSupabaseConfigured()) {
-        try {
-          const updatePayload = {
-            password: generatedPassword,
-            access_granted: true,
-            portal_access_enabled: true,
-          };
+      // Call backend endpoint which uses Supabase Admin Auth API
+      const response = await api.grantPortalAccess(cust.id || customer_id, generatedPassword);
 
-          // Update any application record matching this customer ID or mobile
-          const { data, error } = await supabase
-            .from('applications')
-            .update(updatePayload)
-            .or(`customer_id.eq.${cust.id},mobile_number.eq.${cust.mobile},mobile.eq.${cust.mobile},applicant_name.eq.${cust.name}`);
-
-          console.log('Direct Supabase applications update response:', {
-            data,
-            error,
-            customerId: cust.id,
-            mobile: cust.mobile,
-            updatePayload,
-            status: error ? 'ERROR' : 'SUCCESS',
-          });
-        } catch (sbErr) {
-          console.error('Direct Supabase applications update error for customer:', sbErr);
-        }
+      if (!response.success && !response.loginCredentials) {
+        throw new Error(response.message || 'Failed to provision Supabase Auth customer portal user.');
       }
 
+      const returnedCreds: any = response?.loginCredentials || {};
       setPortalCredentials({
-        customer_id,
-        customerId: customer_id,
-        email,
-        identifier: email,
-        mobile,
-        phone: mobile,
-        temporaryPassword: generatedPassword,
+        customer_id: returnedCreds.customer_id || customer_id,
+        customerId: returnedCreds.customerId || customer_id,
+        email: returnedCreds.email || finalEmail,
+        identifier: returnedCreds.identifier || finalEmail,
+        mobile: returnedCreds.mobile || mobile,
+        phone: returnedCreds.mobile || mobile,
+        temporaryPassword: returnedCreds.temporaryPassword || generatedPassword,
         customerName: cust.name,
       });
+
+      setCustomers(prev =>
+        prev.map(c =>
+          c.id === cust.id
+            ? {
+                ...c,
+                portalAccessEnabled: true,
+              }
+            : c
+        )
+      );
+
       setIsPortalModalOpen(true);
     } catch (err: any) {
       setAlertMsg({ type: 'error', text: err.message || 'Portal access generation failed' });

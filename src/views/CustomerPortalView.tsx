@@ -23,6 +23,7 @@ import {
   AlertCircle,
   HelpCircle,
   FileCheck,
+  LogOut,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { LOAN_STAGES } from '../config/brand';
@@ -32,7 +33,7 @@ import { isSupabaseConfigured } from '../lib/supabase';
 import { api } from '../services/api';
 
 export const CustomerPortalView: React.FC = () => {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const [loading, setLoading] = useState(true);
   const [applications, setApplications] = useState<Application[]>([]);
   const [selectedAppId, setSelectedAppId] = useState<string | null>(null);
@@ -225,6 +226,15 @@ export const CustomerPortalView: React.FC = () => {
             >
               <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} />
               <span>{refreshing ? 'Syncing...' : 'Sync Live'}</span>
+            </button>
+            <button
+              type="button"
+              id="portal-signout-btn"
+              onClick={() => logout()}
+              className="px-3.5 py-2 bg-white/5 hover:bg-rose-900/30 text-white/80 hover:text-rose-200 border border-white/10 hover:border-rose-500/30 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5 cursor-pointer"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+              <span>Sign Out</span>
             </button>
           </div>
         </div>

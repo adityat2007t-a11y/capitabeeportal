@@ -31,6 +31,7 @@ import { ReportsView } from './views/ReportsView';
 import { AnalyticsView } from './views/AnalyticsView';
 import { SettingsView } from './views/SettingsView';
 import { AuditLogsView } from './views/AuditLogsView';
+import { CustomerPortalView } from './views/CustomerPortalView';
 
 // Modals & Drawers
 import { GlobalSearchModal } from './components/common/GlobalSearchModal';
@@ -127,30 +128,12 @@ const AppContent: React.FC = () => {
     return <LoginView />;
   }
 
-  // Security Check: Customer accounts are blocked from the Internal CRM Portal
+  // Customer Portal View: When authenticated as a CUSTOMER, render the Customer Borrowing Portal
   if (role === 'CUSTOMER') {
     return (
-      <div className="min-h-screen bg-[#FAF9F6] flex flex-col items-center justify-center p-6 text-center">
-        <div className="max-w-md w-full bg-white p-8 rounded-2xl border border-rose-200 shadow-xl space-y-4">
-          <div className="w-12 h-12 bg-rose-50 text-rose-600 rounded-full flex items-center justify-center mx-auto border border-rose-200">
-            <ShieldAlert className="w-6 h-6" />
-          </div>
-          <h2 className="serif-display text-2xl text-[#121212] font-semibold">
-            Access Denied: Internal CRM Portal
-          </h2>
-          <p className="text-xs text-[#5A5854] leading-relaxed">
-            Customer accounts are not authorized to access this internal financial management system.
-            Borrowers can track their 12-stage loan progress, status, and documents from the Customer Portal on the main Capitabee website.
-          </p>
-          <div className="pt-3">
-            <button
-              type="button"
-              onClick={() => logout()}
-              className="w-full py-2.5 px-4 bg-[#121212] text-white text-xs font-medium rounded-full hover:bg-[#262626] transition-colors cursor-pointer"
-            >
-              Return to CRM Login
-            </button>
-          </div>
+      <div className="min-h-screen bg-[#FAF9F6]">
+        <div className="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8">
+          <CustomerPortalView />
         </div>
       </div>
     );

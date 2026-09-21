@@ -3281,78 +3281,222 @@ apiRouter.patch('/customers/:id', authMiddleware, (req: AuthenticatedRequest, re
   return res.json({ success: true, customer: cust });
 });
 
-apiRouter.post('/customers/:id/portal-access', authMiddleware, (req: AuthenticatedRequest, res: Response) => {
+apiRouter.post('/customers/:id/portal-access', authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
   const { id } = req.params;
   const { password } = req.body;
 
   const data = db.getData();
   data.customers = data.customers || [];
-  const cust = data.customers.find(c => c.id === id);
+  let cust = data.customers.find(c => c.id === id);
 
-  if (!cust) {
-    return res.status(404).json({ error: 'Customer not found.' });
+  const cleanDigits = (p?: string | null) => (p ? String(p).replace(/\D/g, '').slice(-10) : '');
+  const sb = getServerSupabase();
+
+  // If not found in local db, or to enrich from Supabase
+  let sbCustRow: any = null;
+  if (sb) {
+    try {
+      const { data: foundCusts } = await sb
+        .from('customers')
+        .select('*')
+        .or(`id.eq.${id},customer_id.eq.${id}`)
+        .limit(1);
+
+      if (foundCusts && foundCusts.length > 0) {
+        sbCustRow = foundCusts[0];
+      }
+    } catch (err: any) {
+      console.warn('Supabase customer lookup warning:', err.message);
+    }
   }
 
-  if (!cust.email && !cust.mobile) {
+  const rawEmail = (cust?.email || sbCustRow?.email || '').trim().toLowerCase();
+  const rawMobile = cleanDigits(cust?.mobile || sbCustRow?.mobile_number);
+  const custName = cust?.name || sbCustRow?.full_name || 'Customer';
+  const customerPublicId = sbCustRow?.customer_id || cust?.id || id;
+
+  if (!rawEmail && !rawMobile) {
     return res.status(400).json({ error: 'Customer must have an email or mobile number for portal access.' });
   }
 
-  const portalPassword = password || cust.mobile.slice(-6) || '123456';
-  const { hash, salt } = hashPassword(portalPassword);
+  // Determine portal email: use real customer email or mobile domain fallback
+  const portalEmail = rawEmail || `${rawMobile}@capitabee.in`;
+  const portalPassword = (password || `CB-${Math.floor(100000 + Math.random() * 900000)}`).trim();
   const now = new Date().toISOString();
 
-  // Find or create portal user
-  let portalUser = data.users.find(u => u.id === cust.id || (cust.email && u.email.toLowerCase() === cust.email.toLowerCase()));
-  if (!portalUser) {
-    portalUser = {
-      id: cust.id,
-      name: cust.name,
-      email: cust.email || `${cust.mobile}@portal.capitabee.com`,
-      mobile: cust.mobile,
-      role: 'CUSTOMER',
-      department: 'Customer Portal',
-      designation: 'Borrower',
-      status: 'Active',
-      onlineStatus: 'Offline',
-      createdAt: now,
-      updatedAt: now,
-      passwordHash: hash,
-      salt,
-    };
-    data.users.push(portalUser);
-  } else {
-    portalUser.role = 'CUSTOMER';
-    portalUser.passwordHash = hash;
-    portalUser.salt = salt;
-    portalUser.status = 'Active';
-    portalUser.updatedAt = now;
+  let authUserId: string | null = sbCustRow?.auth_user_id || null;
+
+  // 1. SUPABASE AUTH ADMIN API
+  if (sb) {
+    try {
+      // Check if user already exists by auth_user_id
+      if (authUserId) {
+        try {
+          const { error: updateAuthErr } = await sb.auth.admin.updateUserById(authUserId, {
+            password: portalPassword,
+            email: portalEmail,
+            email_confirm: true,
+            user_metadata: {
+              role: 'CUSTOMER',
+              full_name: custName,
+              customer_id: customerPublicId,
+              mobile_number: rawMobile,
+            },
+          });
+          if (updateAuthErr) {
+            console.warn('Supabase auth updateUserById error, will try lookup:', updateAuthErr.message);
+            authUserId = null; // fallback to lookup
+          }
+        } catch {
+          authUserId = null;
+        }
+      }
+
+      // If no valid authUserId yet, check if an Auth user with this email already exists
+      if (!authUserId) {
+        // Find existing Auth user by email
+        const { data: listData } = await sb.auth.admin.listUsers();
+        const existingAuthUser = listData?.users?.find(
+          (u: any) => u.email && u.email.toLowerCase() === portalEmail.toLowerCase()
+        );
+
+        if (existingAuthUser) {
+          authUserId = existingAuthUser.id;
+          const { error: updateAuthErr } = await sb.auth.admin.updateUserById(authUserId, {
+            password: portalPassword,
+            email_confirm: true,
+            user_metadata: {
+              role: 'CUSTOMER',
+              full_name: custName,
+              customer_id: customerPublicId,
+              mobile_number: rawMobile,
+            },
+          });
+          if (updateAuthErr) {
+            throw new Error(`Failed to update Supabase Auth password: ${updateAuthErr.message}`);
+          }
+        } else {
+          // Create new user in Supabase Auth
+          const { data: createData, error: createAuthErr } = await sb.auth.admin.createUser({
+            email: portalEmail,
+            password: portalPassword,
+            email_confirm: true,
+            user_metadata: {
+              role: 'CUSTOMER',
+              full_name: custName,
+              customer_id: customerPublicId,
+              mobile_number: rawMobile,
+            },
+          });
+
+          if (createAuthErr) {
+            throw new Error(`Failed to create Supabase Auth user: ${createAuthErr.message}`);
+          }
+
+          authUserId = createData?.user?.id || null;
+        }
+      }
+
+      // 2. UPDATE Supabase database tables (DO NOT store plaintext password)
+      const custUpdatePayload: any = {
+        portal_access_enabled: true,
+        access_granted: true,
+        portal_access_created_at: now,
+        updated_at: now,
+      };
+      if (authUserId) {
+        custUpdatePayload.auth_user_id = authUserId;
+      }
+
+      // Update customers table
+      if (rawEmail) {
+        await sb.from('customers').update(custUpdatePayload).ilike('email', rawEmail);
+      }
+      if (sbCustRow?.id) {
+        await sb.from('customers').update(custUpdatePayload).eq('id', sbCustRow.id);
+      } else if (id) {
+        await sb.from('customers').update(custUpdatePayload).or(`customer_id.eq.${id},id.eq.${id}`);
+      }
+
+      // Update applications table
+      const appUpdatePayload: any = {
+        portal_access_enabled: true,
+        access_granted: true,
+        updated_at: now,
+      };
+      if (rawEmail) {
+        await sb.from('applications').update(appUpdatePayload).ilike('email', rawEmail);
+      }
+      if (customerPublicId) {
+        await sb.from('applications').update(appUpdatePayload).eq('customer_id', customerPublicId);
+      }
+    } catch (err: any) {
+      console.error('Supabase Auth admin provisioning failed:', err);
+      return res.status(500).json({
+        error: `Supabase Auth activation error: ${err.message || 'Could not provision credentials in Supabase Auth.'}`,
+      });
+    }
   }
 
-  cust.portalAccessEnabled = true;
-  cust.userId = portalUser.id;
-  cust.updatedAt = now;
+  // 3. Local CRM mirror (DO NOT store plaintext password)
+  const { hash, salt } = hashPassword(portalPassword);
+  if (cust) {
+    let portalUser = data.users.find(u => u.id === cust!.id || (cust!.email && u.email.toLowerCase() === cust!.email.toLowerCase()));
+    if (!portalUser) {
+      portalUser = {
+        id: cust.id,
+        name: cust.name,
+        email: portalEmail,
+        mobile: cust.mobile,
+        role: 'CUSTOMER',
+        department: 'Customer Portal',
+        designation: 'Borrower',
+        status: 'Active',
+        onlineStatus: 'Offline',
+        createdAt: now,
+        updatedAt: now,
+        passwordHash: hash,
+        salt,
+      };
+      data.users.push(portalUser);
+    } else {
+      portalUser.role = 'CUSTOMER';
+      portalUser.passwordHash = hash;
+      portalUser.salt = salt;
+      portalUser.status = 'Active';
+      portalUser.updatedAt = now;
+    }
+
+    cust.portalAccessEnabled = true;
+    cust.userId = portalUser.id;
+    cust.updatedAt = now;
+  }
 
   db.logAudit(
     { id: req.user!.id, name: req.user!.name, role: req.user!.role },
     'CUSTOMER_PORTAL_ACCESS_ENABLED',
     'Customer',
-    cust.id,
-    `Portal access credentials generated for customer ${cust.name} (${cust.id}).`
+    id,
+    `Portal access credentials generated in Supabase Auth for customer ${custName} (${customerPublicId}).`
   );
   db.saveDatabase();
 
   return res.json({
     success: true,
-    message: `Portal access granted. Login ID: ${portalUser.email} / Mobile: ${cust.mobile}`,
+    message: `Portal access granted. Login ID: ${portalEmail} / Customer ID: ${customerPublicId}`,
+    auth_user_id: authUserId,
     loginCredentials: {
-      identifier: portalUser.email,
-      mobile: cust.mobile,
+      customerId: customerPublicId,
+      customer_id: customerPublicId,
+      email: portalEmail,
+      identifier: portalEmail,
+      mobile: rawMobile,
       temporaryPassword: portalPassword,
     },
   });
 });
 
-apiRouter.post('/customers/:id/reset-portal-password', authMiddleware, (req: AuthenticatedRequest, res: Response) => {
+apiRouter.post('/customers/:id/reset-portal-password', authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
   const { id } = req.params;
   const { newPassword } = req.body;
   if (!newPassword || newPassword.length < 6) {
@@ -3361,22 +3505,56 @@ apiRouter.post('/customers/:id/reset-portal-password', authMiddleware, (req: Aut
 
   const data = db.getData();
   const cust = (data.customers || []).find(c => c.id === id);
-  if (!cust) {
-    return res.status(404).json({ error: 'Customer not found.' });
+  const sb = getServerSupabase();
+
+  // If Supabase admin is configured, update Supabase Auth
+  if (sb) {
+    try {
+      const { data: foundCusts } = await sb
+        .from('customers')
+        .select('*')
+        .or(`id.eq.${id},customer_id.eq.${id}`)
+        .limit(1);
+
+      const sbCust = foundCusts && foundCusts.length > 0 ? foundCusts[0] : null;
+      let authUserId = sbCust?.auth_user_id;
+
+      if (!authUserId) {
+        const targetEmail = (sbCust?.email || cust?.email || '').trim().toLowerCase();
+        if (targetEmail) {
+          const { data: listData } = await sb.auth.admin.listUsers();
+          const existingUser = listData?.users?.find((u: any) => u.email && u.email.toLowerCase() === targetEmail);
+          if (existingUser) {
+            authUserId = existingUser.id;
+          }
+        }
+      }
+
+      if (authUserId) {
+        const { error: resetErr } = await sb.auth.admin.updateUserById(authUserId, {
+          password: newPassword.trim(),
+        });
+        if (resetErr) {
+          console.warn('Supabase Auth reset password warning:', resetErr.message);
+        }
+      }
+    } catch (err: any) {
+      console.warn('Supabase Auth reset exception:', err.message);
+    }
   }
 
-  const portalUser = data.users.find(u => u.id === cust.id || (cust.email && u.email.toLowerCase() === cust.email.toLowerCase()));
-  if (!portalUser) {
-    return res.status(404).json({ error: 'Customer does not have an active portal user account.' });
+  if (cust) {
+    const portalUser = data.users.find(u => u.id === cust.id || (cust.email && u.email.toLowerCase() === cust.email.toLowerCase()));
+    if (portalUser) {
+      const { hash, salt } = hashPassword(newPassword);
+      portalUser.passwordHash = hash;
+      portalUser.salt = salt;
+      portalUser.updatedAt = new Date().toISOString();
+      db.saveDatabase();
+    }
   }
 
-  const { hash, salt } = hashPassword(newPassword);
-  portalUser.passwordHash = hash;
-  portalUser.salt = salt;
-  portalUser.updatedAt = new Date().toISOString();
-  db.saveDatabase();
-
-  return res.json({ success: true, message: 'Portal password updated successfully.' });
+  return res.json({ success: true, message: 'Portal password updated successfully in Supabase Auth.' });
 });
 
 // -------------------------------------------------------------

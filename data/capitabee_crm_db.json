@@ -14,8 +14,8 @@
       "updatedAt": "2026-08-28T08:13:11.223Z",
       "passwordHash": "69a48ffde0c4d5469b6ed3173cba050400429036ffc37041ca59357557f1a3f42f528b5ba1d1ad736203f620b14f805267388ff6bb9a3913a37d86003ad284e0",
       "salt": "e61f206e862d5abb51bf167fc848e571",
-      "lastLogin": "2026-09-08T09:24:38.756Z",
-      "sessionStartedAt": "2026-09-08T09:24:38.756Z",
+      "lastLogin": "2026-09-21T07:33:47.069Z",
+      "sessionStartedAt": "2026-09-21T07:33:47.069Z",
       "lastLogout": "2026-09-02T12:33:56.547Z"
     },
     {
@@ -460,6 +460,13 @@
       "role": "ADMIN",
       "createdAt": "2026-09-08T09:24:38.756Z",
       "expiresAt": "2026-09-09T09:24:38.756Z"
+    },
+    {
+      "token": "6e1061551b3e0c1f6f052d1727811c04c54dec7aa709f4733572f67a7b61789f",
+      "userId": "CB-ADMIN-01",
+      "role": "ADMIN",
+      "createdAt": "2026-09-21T07:33:47.069Z",
+      "expiresAt": "2026-09-22T07:33:47.069Z"
     }
   ],
   "leads": [],
@@ -469,6 +476,17 @@
   "followUps": [],
   "leadNotes": [],
   "auditLogs": [
+    {
+      "id": "AUD-000113",
+      "actorId": "CB-ADMIN-01",
+      "actorName": "System Administrator",
+      "actorRole": "ADMIN",
+      "action": "USER_LOGIN",
+      "entity": "User",
+      "entityId": "CB-ADMIN-01",
+      "timestamp": "2026-09-21T07:33:47.069Z",
+      "details": "ADMIN System Administrator logged in."
+    },
     {
       "id": "AUD-000112",
       "actorId": "CB-ADMIN-01",
@@ -1494,7 +1512,7 @@
     "leadSeq": 16,
     "applicationSeq": 16,
     "documentSeq": 0,
-    "auditSeq": 112
+    "auditSeq": 113
   },
   "reviews": [],
   "customers": [],
