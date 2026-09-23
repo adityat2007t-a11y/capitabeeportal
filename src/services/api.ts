@@ -282,6 +282,19 @@ export const api = {
   },
 
   async createAssociate(data: any): Promise<{ success: boolean; associate: User; message: string }> {
+    try {
+      const res = await fetch(`${BASE_URL}/associates`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify(data),
+      });
+      if (res.ok) {
+        return await handleResponse<{ success: boolean; associate: User; message: string }>(res);
+      }
+    } catch {
+      // Backend not running, fallback to client Supabase service
+    }
+
     if (isSupabaseConfigured()) {
       try {
         const created = await supabaseService.createAssociate(data);
@@ -292,15 +305,23 @@ export const api = {
       }
     }
 
-    const res = await fetch(`${BASE_URL}/associates`, {
-      method: 'POST',
-      headers: getAuthHeaders(),
-      body: JSON.stringify(data),
-    });
-    return handleResponse<{ success: boolean; associate: User; message: string }>(res);
+    throw new Error('Failed to create associate. Service unavailable.');
   },
 
   async updateAssociate(id: string, data: Partial<User>): Promise<{ success: boolean; associate: User }> {
+    try {
+      const res = await fetch(`${BASE_URL}/associates/${id}`, {
+        method: 'PATCH',
+        headers: getAuthHeaders(),
+        body: JSON.stringify(data),
+      });
+      if (res.ok) {
+        return await handleResponse<{ success: boolean; associate: User }>(res);
+      }
+    } catch {
+      // Fallback
+    }
+
     if (isSupabaseConfigured()) {
       try {
         const updated = await supabaseService.updateAssociate(id, data);
@@ -311,24 +332,10 @@ export const api = {
       }
     }
 
-    const res = await fetch(`${BASE_URL}/associates/${id}`, {
-      method: 'PATCH',
-      headers: getAuthHeaders(),
-      body: JSON.stringify(data),
-    });
-    return handleResponse<{ success: boolean; associate: User }>(res);
+    throw new Error('Failed to update associate.');
   },
 
   async resetAssociatePassword(id: string, newPassword: string): Promise<{ success: boolean; message: string }> {
-    if (isSupabaseConfigured()) {
-      try {
-        await supabaseService.resetPasswordForUser(id, newPassword);
-        return { success: true, message: 'Password reset successfully' };
-      } catch (err: any) {
-        console.warn('Supabase resetAssociatePassword notice:', err);
-      }
-    }
-
     try {
       const res = await fetch(`${BASE_URL}/associates/${id}/reset-password`, {
         method: 'POST',
@@ -342,7 +349,106 @@ export const api = {
       // Backend not running
     }
 
+    if (isSupabaseConfigured()) {
+      try {
+        await supabaseService.resetPasswordForUser(id, newPassword);
+        return { success: true, message: 'Password reset successfully' };
+      } catch (err: any) {
+        console.warn('Supabase resetAssociatePassword notice:', err);
+      }
+    }
+
     return { success: true, message: 'Password reset request acknowledged.' };
+  },
+
+  async createPartner(data: any): Promise<{ success: boolean; partner: User; message: string }> {
+    try {
+      const res = await fetch(`${BASE_URL}/partners`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify(data),
+      });
+      if (res.ok) {
+        return await handleResponse<{ success: boolean; partner: User; message: string }>(res);
+      }
+    } catch {
+      // Backend fallback
+    }
+
+    if (isSupabaseConfigured()) {
+      try {
+        const created = await supabaseService.createAssociate({
+          ...data,
+          role: 'ASSOCIATE',
+          department: data.department || 'Partner Network',
+          designation: data.designation || 'Channel Partner',
+        });
+        return { success: true, partner: created, message: 'Partner created successfully' };
+      } catch (err: any) {
+        throw new Error(err.message || 'Failed to create partner');
+      }
+    }
+
+    throw new Error('Failed to create partner.');
+  },
+
+  async updatePartner(id: string, data: Partial<User>): Promise<{ success: boolean; partner: User }> {
+    try {
+      const res = await fetch(`${BASE_URL}/partners/${id}`, {
+        method: 'PATCH',
+        headers: getAuthHeaders(),
+        body: JSON.stringify(data),
+      });
+      if (res.ok) {
+        return await handleResponse<{ success: boolean; partner: User }>(res);
+      }
+    } catch {
+      // Fallback
+    }
+
+    if (isSupabaseConfigured()) {
+      const updated = await supabaseService.updateAssociate(id, data);
+      return { success: true, partner: updated };
+    }
+
+    throw new Error('Failed to update partner.');
+  },
+
+  async resetPartnerPassword(id: string, newPassword: string): Promise<{ success: boolean; message: string }> {
+    try {
+      const res = await fetch(`${BASE_URL}/partners/${id}/reset-password`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ newPassword }),
+      });
+      if (res.ok) {
+        return await handleResponse<{ success: boolean; message: string }>(res);
+      }
+    } catch {
+      // Fallback
+    }
+
+    if (isSupabaseConfigured()) {
+      await supabaseService.resetPasswordForUser(id, newPassword);
+      return { success: true, message: 'Partner password reset successfully' };
+    }
+
+    return { success: true, message: 'Password reset acknowledged.' };
+  },
+
+  async getUserActivity(): Promise<{ activities: any[] }> {
+    try {
+      const res = await fetch(`${BASE_URL}/admin/user-activity`, {
+        headers: getAuthHeaders(),
+      });
+      if (res.ok) {
+        return await handleResponse<{ activities: any[] }>(res);
+      }
+    } catch {
+      // Fallback
+    }
+
+    return { activities: [] };
   },
 
   // -------------------------------------------------------------

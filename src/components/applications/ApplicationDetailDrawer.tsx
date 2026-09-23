@@ -75,10 +75,12 @@ export const ApplicationDetailDrawer: React.FC<ApplicationDetailDrawerProps> = (
 
   // Customer Portal Access Modal
   const [isPortalModalOpen, setIsPortalModalOpen] = useState(false);
+  const [portalLoading, setPortalLoading] = useState(false);
   const [portalCredentials, setPortalCredentials] = useState<CustomerPortalCredentials | null>(null);
 
   const handleGrantPortalAccess = async () => {
-    if (!app) return;
+    if (!app || portalLoading) return;
+    setPortalLoading(true);
     const activeApplication = app;
 
     // 1. FORCE TRIM AND LOWERCASE MATCHING
@@ -105,15 +107,6 @@ export const ApplicationDetailDrawer: React.FC<ApplicationDetailDrawerProps> = (
       '';
 
     const finalEmail = targetEmail || (mobile ? `${mobile.replace(/\D/g, '')}@capitabee.in` : 'customer@capitabee.in');
-
-    console.log('Granting portal access for active application:', {
-      applicationId: activeApplication.id,
-      customer_id,
-      targetEmail,
-      finalEmail,
-      mobile,
-      generatedPassword,
-    });
 
     try {
       // Call backend API which provisions user via Supabase Admin Auth API
@@ -151,6 +144,8 @@ export const ApplicationDetailDrawer: React.FC<ApplicationDetailDrawerProps> = (
     } catch (err: any) {
       console.error('Portal access grant error in drawer:', err);
       alert('Error activating Customer Portal access: ' + (err.message || 'Server error.'));
+    } finally {
+      setPortalLoading(false);
     }
   };
 
@@ -232,6 +227,19 @@ export const ApplicationDetailDrawer: React.FC<ApplicationDetailDrawerProps> = (
     }
   };
 
+  const handleRealFileUpload = async (docId: string, e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !app) return;
+    try {
+      const sizeMB = (file.size / (1024 * 1024)).toFixed(2);
+      await api.uploadDocument(app.id, docId, file.name, `${sizeMB} MB`);
+      loadData();
+      onUpdate();
+    } catch (err: any) {
+      alert(err.message || 'Failed to upload file');
+    }
+  };
+
   const handleSimulateUpload = async (docId: string, docName: string) => {
     try {
       await api.uploadDocument(
@@ -304,12 +312,13 @@ export const ApplicationDetailDrawer: React.FC<ApplicationDetailDrawerProps> = (
           <div className="flex items-center gap-2">
             <button
               type="button"
+              disabled={portalLoading}
               onClick={handleGrantPortalAccess}
-              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 sans-micro text-[10px] font-semibold uppercase tracking-wider text-[#8C6D37] bg-[#FAF6EC] border border-[#E8DCC0] hover:bg-[#F5EED8] hover:border-[#8C6D37] rounded-full transition-all cursor-pointer shadow-2xs"
+              className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 sans-micro text-[10px] font-semibold uppercase tracking-wider text-[#8C6D37] bg-[#FAF6EC] border border-[#E8DCC0] hover:bg-[#F5EED8] hover:border-[#8C6D37] rounded-full transition-all cursor-pointer shadow-2xs ${portalLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
               title="Grant Customer Portal Access & Generate Temporary Password"
             >
               <Key className="w-3 h-3 text-[#B89758]" />
-              <span>Grant Access / Temporary Password</span>
+              <span>{portalLoading ? 'Activating...' : 'Grant Access / Temporary Password'}</span>
             </button>
             <button
               type="button"
@@ -516,15 +525,25 @@ export const ApplicationDetailDrawer: React.FC<ApplicationDetailDrawerProps> = (
                         {/* Actions */}
                         <div className="flex items-center gap-1.5">
                           {doc.status === 'Requested' && (
-                            <button
-                              type="button"
-                              onClick={() => handleSimulateUpload(doc.id, doc.documentType)}
-                              className="px-2.5 py-1 sans-micro text-[9.5px] uppercase tracking-wider text-[#121212] bg-[#FAF9F6] border border-[#E8E6E1] hover:border-[#121212] rounded-full flex items-center gap-1 cursor-pointer"
-                              title="Simulate client upload via Future Customer Portal API"
-                            >
-                              <Upload className="w-3 h-3 text-[#2D7A70]" />
-                              <span>Simulate Upload</span>
-                            </button>
+                            <>
+                              <label className="px-2.5 py-1 sans-micro text-[9.5px] uppercase tracking-wider text-[#121212] bg-[#FAF9F6] border border-[#E8E6E1] hover:border-[#121212] rounded-full flex items-center gap-1 cursor-pointer">
+                                <Upload className="w-3 h-3 text-[#2D7A70]" />
+                                <span>Upload File</span>
+                                <input
+                                  type="file"
+                                  className="hidden"
+                                  onChange={e => handleRealFileUpload(doc.id, e)}
+                                />
+                              </label>
+                              <button
+                                type="button"
+                                onClick={() => handleSimulateUpload(doc.id, doc.documentType)}
+                                className="px-2 py-1 sans-micro text-[8.5px] uppercase tracking-wider text-[#888888] hover:text-[#121212] cursor-pointer"
+                                title="Quick 1-click test upload"
+                              >
+                                Auto-Fill
+                              </button>
+                            </>
                           )}
 
                           {doc.status === 'Uploaded' && (

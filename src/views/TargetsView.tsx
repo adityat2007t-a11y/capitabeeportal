@@ -146,13 +146,19 @@ export const TargetsView: React.FC = () => {
     }
   };
 
-  const filtered = targets.filter(t => {
+  let filtered = targets.filter(t => {
     const matchSearch =
       t.userName.toLowerCase().includes(search.toLowerCase()) ||
       t.userId.toLowerCase().includes(search.toLowerCase());
     const matchRole = roleFilter === 'All' || t.role === roleFilter;
     return matchSearch && matchRole;
   });
+
+  if (role === 'ASSOCIATE') {
+    filtered = filtered.filter(t => t.userId === user?.id || t.userId === user?.employeeId);
+  } else if (role === 'PARTNER') {
+    filtered = filtered.filter(t => t.userId === user?.id || t.userId === user?.partnerId);
+  }
 
   return (
     <div id="targets-view" className="space-y-6">

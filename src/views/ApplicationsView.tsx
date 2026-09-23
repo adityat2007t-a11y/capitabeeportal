@@ -112,9 +112,13 @@ export const ApplicationsView: React.FC<ApplicationsViewProps> = ({
 
   // Customer Portal Access Modal
   const [isPortalModalOpen, setIsPortalModalOpen] = useState(false);
+  const [portalLoadingAppId, setPortalLoadingAppId] = useState<string | null>(null);
   const [portalCredentials, setPortalCredentials] = useState<CustomerPortalCredentials | null>(null);
 
   const handleGrantPortalAccess = async (activeApplication: Application) => {
+    if (portalLoadingAppId) return;
+    setPortalLoadingAppId(activeApplication.id);
+
     // 1. FORCE TRIM AND LOWERCASE MATCHING
     const generatedPassword = `CB-${Math.floor(100000 + Math.random() * 900000)}`;
     const rawEmail =
@@ -139,15 +143,6 @@ export const ApplicationsView: React.FC<ApplicationsViewProps> = ({
       '';
 
     const finalEmail = targetEmail || (mobile ? `${mobile.replace(/\D/g, '')}@capitabee.in` : 'customer@capitabee.in');
-
-    console.log('Granting portal access for active application from ApplicationsView:', {
-      applicationId: activeApplication.id,
-      customer_id,
-      targetEmail,
-      finalEmail,
-      mobile,
-      generatedPassword,
-    });
 
     try {
       // Call backend API which uses Supabase Admin Auth API to create/update user and set real password
@@ -187,6 +182,8 @@ export const ApplicationsView: React.FC<ApplicationsViewProps> = ({
     } catch (err: any) {
       console.error('Portal access grant error:', err);
       alert('Error activating Customer Portal access: ' + (err.message || 'Server error.'));
+    } finally {
+      setPortalLoadingAppId(null);
     }
   };
 
@@ -678,11 +675,13 @@ export const ApplicationsView: React.FC<ApplicationsViewProps> = ({
 
                           <button
                             type="button"
+                            disabled={portalLoadingAppId === app.id}
                             onClick={e => {
                               e.stopPropagation();
+                              if (portalLoadingAppId) return;
                               handleGrantPortalAccess(app);
                             }}
-                            className="w-7 h-7 rounded-full border border-[#E8DCC0] bg-[#FAF6EC] hover:bg-[#F5EED8] hover:border-[#8C6D37] flex items-center justify-center text-[#8C6D37] transition-colors cursor-pointer"
+                            className={`w-7 h-7 rounded-full border border-[#E8DCC0] bg-[#FAF6EC] hover:bg-[#F5EED8] hover:border-[#8C6D37] flex items-center justify-center text-[#8C6D37] transition-colors cursor-pointer ${portalLoadingAppId === app.id ? 'opacity-50 cursor-not-allowed' : ''}`}
                             title="Grant Portal Access / Temporary Password"
                           >
                             <Key className="w-3 h-3 text-[#B89758]" />

@@ -84,10 +84,12 @@ export const PartnersView: React.FC = () => {
           const associates = await supabaseService.getAssociates();
           const channelPartners = associates.filter(
             a =>
-              (a as any).partnerType ||
+              a.role === 'PARTNER' ||
+              Boolean((a as any).partnerId) ||
+              Boolean((a as any).partnerType) ||
               a.department?.toLowerCase().includes('partner') ||
               a.designation?.toLowerCase().includes('partner') ||
-              a.role === 'ASSOCIATE'
+              a.id?.toUpperCase().includes('PART')
           );
 
           const apps = await supabaseService.getApplications();
@@ -203,7 +205,7 @@ export const PartnersView: React.FC = () => {
 
     try {
       if (selectedPartner) {
-        await supabaseService.updateAssociate(selectedPartner.id, {
+        await api.updatePartner(selectedPartner.id, {
           name: formData.name,
           mobile: formData.mobile,
           department: formData.department,
@@ -214,18 +216,20 @@ export const PartnersView: React.FC = () => {
         setAlertMsg({ type: 'success', text: `Partner ${selectedPartner.id} updated successfully.` });
       } else {
         const partnerId = formData.customId || nextCbId || `CB-${Math.floor(1000 + Math.random() * 9000)}`;
-        await supabaseService.createAssociate({
+        await api.createPartner({
           customId: partnerId,
           name: formData.name,
           mobile: formData.mobile,
           email: formData.email,
-          department: formData.department,
-          designation: formData.designation,
+          password: formData.password || 'Capitabee@123',
+          confirmPassword: formData.confirmPassword || formData.password || 'Capitabee@123',
+          department: formData.department || 'Channel Partnerships',
+          designation: formData.designation || 'Channel Partner',
           status: formData.status,
           target: formData.target,
-          role: 'ASSOCIATE',
+          targetCustomers: formData.targetCustomers,
         });
-        setAlertMsg({ type: 'success', text: `Partner ${partnerId} created successfully!` });
+        setAlertMsg({ type: 'success', text: `Partner ${partnerId} created successfully with authentication access!` });
       }
       setIsModalOpen(false);
       fetchPartners();
@@ -242,7 +246,7 @@ export const PartnersView: React.FC = () => {
 
     setActionLoading(true);
     try {
-      await api.resetAssociatePassword(selectedPartner.id, resetPassword);
+      await api.resetPartnerPassword(selectedPartner.id, resetPassword);
       setAlertMsg({ type: 'success', text: `Password for Partner ${selectedPartner.id} reset successfully.` });
       setIsResetModalOpen(false);
       setResetPassword('');

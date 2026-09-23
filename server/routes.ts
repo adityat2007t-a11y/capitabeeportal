@@ -494,6 +494,52 @@ apiRouter.post('/associates', authMiddleware, requireAdmin, (req: AuthenticatedR
   };
 
   data.users.push(newAssociate);
+
+  // Sync with Supabase Auth & profiles table if configured
+  const sb = getServerSupabase();
+  if (sb) {
+    (async () => {
+      try {
+        const { data: authCreated, error: authErr } = await sb.auth.admin.createUser({
+          email: normalizedEmail,
+          password: password,
+          email_confirm: true,
+          user_metadata: {
+            role: 'ASSOCIATE',
+            full_name: name.trim(),
+            mobile: mobile.trim(),
+            associate_code: associateId,
+          },
+        });
+        if (!authErr && authCreated?.user) {
+          await sb.from('profiles').upsert({
+            id: authCreated.user.id,
+            full_name: name.trim(),
+            email: normalizedEmail,
+            mobile_number: mobile.trim(),
+            role: 'associate',
+            associate_code: associateId,
+            is_active: status === 'Active',
+            created_at: now,
+            updated_at: now,
+          });
+          await sb.from('associates').upsert({
+            associate_code: associateId,
+            name: name.trim(),
+            email: normalizedEmail,
+            phone: mobile.trim(),
+            designation: designation || 'Loan Relationship Associate',
+            branch: department || 'Loan Operations',
+            is_active: status === 'Active',
+            created_at: now,
+          });
+        }
+      } catch (sbErr) {
+        console.warn('Supabase associate sync notice:', sbErr);
+      }
+    })();
+  }
+
   db.logAudit(
     { id: req.user!.id, name: req.user!.name, role: req.user!.role },
     'ASSOCIATE_CREATED',
@@ -557,6 +603,21 @@ apiRouter.post('/associates/:id/reset-password', authMiddleware, requireAdmin, (
   associate.passwordHash = hash;
   associate.salt = salt;
   associate.updatedAt = new Date().toISOString();
+
+  // Sync with Supabase Auth
+  const sb = getServerSupabase();
+  if (sb) {
+    (async () => {
+      try {
+        const { data: prof } = await sb.from('profiles').select('id').or(`associate_code.eq.${id},email.eq.${associate.email}`).limit(1);
+        if (prof && prof.length > 0) {
+          await sb.auth.admin.updateUserById(prof[0].id, { password: newPassword });
+        }
+      } catch (sbErr) {
+        console.warn('Supabase auth reset password notice:', sbErr);
+      }
+    })();
+  }
 
   db.logAudit(
     { id: req.user!.id, name: req.user!.name, role: req.user!.role },
@@ -707,6 +768,43 @@ apiRouter.post('/partners', authMiddleware, requireAdmin, (req: AuthenticatedReq
   };
 
   data.users.push(newPartner);
+
+  // Sync with Supabase Auth & profiles table
+  const sb = getServerSupabase();
+  if (sb) {
+    (async () => {
+      try {
+        const { data: authCreated, error: authErr } = await sb.auth.admin.createUser({
+          email: normalizedEmail,
+          password: password,
+          email_confirm: true,
+          user_metadata: {
+            role: 'PARTNER',
+            full_name: name.trim(),
+            mobile: mobile.trim(),
+            partner_id: partnerId,
+          },
+        });
+        if (!authErr && authCreated?.user) {
+          await sb.from('profiles').upsert({
+            id: authCreated.user.id,
+            full_name: name.trim(),
+            email: normalizedEmail,
+            mobile_number: mobile.trim(),
+            role: 'associate',
+            department: 'Partner Network',
+            designation: designation || 'Channel Partner',
+            is_active: status === 'Active',
+            created_at: now,
+            updated_at: now,
+          });
+        }
+      } catch (sbErr) {
+        console.warn('Supabase partner sync notice:', sbErr);
+      }
+    })();
+  }
+
   db.logAudit(
     { id: req.user!.id, name: req.user!.name, role: req.user!.role },
     'PARTNER_CREATED',
@@ -772,6 +870,21 @@ apiRouter.post('/partners/:id/reset-password', authMiddleware, requireAdmin, (re
   partner.salt = salt;
   partner.updatedAt = new Date().toISOString();
 
+  // Sync with Supabase Auth
+  const sb = getServerSupabase();
+  if (sb) {
+    (async () => {
+      try {
+        const { data: prof } = await sb.from('profiles').select('id').or(`email.eq.${partner.email},full_name.ilike.%${partner.name}%`).limit(1);
+        if (prof && prof.length > 0) {
+          await sb.auth.admin.updateUserById(prof[0].id, { password: newPassword });
+        }
+      } catch (sbErr) {
+        console.warn('Supabase partner auth reset password notice:', sbErr);
+      }
+    })();
+  }
+
   db.logAudit(
     { id: req.user!.id, name: req.user!.name, role: req.user!.role },
     'PARTNER_PASSWORD_RESET',
@@ -821,6 +934,58 @@ apiRouter.get('/partner/stats', authMiddleware, (req: AuthenticatedRequest, res:
       recentApplications: partnerApps.slice(0, 5),
     },
   });
+});
+
+// -------------------------------------------------------------
+// 2.2.1 ADMIN - USER SESSIONS & ACTIVITY MONITOR
+// -------------------------------------------------------------
+apiRouter.get('/admin/user-activity', authMiddleware, requireAdmin, (req: AuthenticatedRequest, res: Response) => {
+  const data = db.getData();
+  const now = new Date();
+
+  const activityList = data.users.map(u => {
+    // Audit logs by this user
+    const userAudits = (data.auditLogs || []).filter(a => a.actorId === u.id || (a as any).userId === u.id);
+    const lastAudit = userAudits[0] || null;
+
+    // Login counts & sessions
+    const loginAudits = userAudits.filter(a => a.action === 'LOGIN');
+    const totalSessions = Math.max(loginAudits.length, u.lastLogin ? 1 : 0);
+
+    // Calculate active duration
+    let sessionDurationMinutes = 0;
+    if (u.onlineStatus === 'Online' && u.sessionStartedAt) {
+      const diffMs = now.getTime() - new Date(u.sessionStartedAt).getTime();
+      sessionDurationMinutes = Math.max(0, Math.floor(diffMs / (1000 * 60)));
+    }
+
+    return {
+      id: u.id,
+      name: u.name,
+      email: u.email,
+      mobile: u.mobile,
+      role: u.role,
+      department: u.department,
+      designation: u.designation,
+      status: u.status || 'Active',
+      onlineStatus: u.onlineStatus || 'Offline',
+      lastLogin: u.lastLogin || u.sessionStartedAt || (userAudits.find(a => a.action === 'LOGIN')?.timestamp ?? null),
+      lastLogout: u.lastLogout || null,
+      sessionStartedAt: u.sessionStartedAt || null,
+      sessionDurationMinutes,
+      totalSessions,
+      lastAction: lastAudit ? `${lastAudit.action}: ${lastAudit.details}` : 'No activity recorded',
+      lastActionTime: lastAudit ? lastAudit.timestamp : u.updatedAt,
+      recentActions: userAudits.slice(0, 5).map(a => ({
+        action: a.action,
+        entity: a.entity,
+        details: a.details,
+        timestamp: a.timestamp,
+      })),
+    };
+  });
+
+  return res.json({ activities: activityList });
 });
 
 // -------------------------------------------------------------
@@ -3281,9 +3446,11 @@ apiRouter.patch('/customers/:id', authMiddleware, (req: AuthenticatedRequest, re
   return res.json({ success: true, customer: cust });
 });
 
+const portalActivationDebounce = new Map<string, number>();
+
 apiRouter.post('/customers/:id/portal-access', authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
   const { id } = req.params;
-  const { password } = req.body;
+  const { password, forceReset } = req.body;
 
   const data = db.getData();
   data.customers = data.customers || [];
@@ -3296,14 +3463,19 @@ apiRouter.post('/customers/:id/portal-access', authMiddleware, async (req: Authe
   let sbCustRow: any = null;
   if (sb) {
     try {
-      const { data: foundCusts } = await sb
-        .from('customers')
-        .select('*')
-        .or(`id.eq.${id},customer_id.eq.${id}`)
-        .limit(1);
+      const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+      let custQuery = sb.from('customers').select('*');
+      if (isUUID) {
+        custQuery = custQuery.eq('id', id);
+      } else {
+        custQuery = custQuery.eq('customer_id', id);
+      }
+      const { data: foundCusts, error: lookupErr } = await custQuery.limit(1);
 
       if (foundCusts && foundCusts.length > 0) {
         sbCustRow = foundCusts[0];
+      } else if (lookupErr) {
+        console.warn('Supabase customer lookup query notice:', lookupErr.message);
       }
     } catch (err: any) {
       console.warn('Supabase customer lookup warning:', err.message);
@@ -3315,12 +3487,40 @@ apiRouter.post('/customers/:id/portal-access', authMiddleware, async (req: Authe
   const custName = cust?.name || sbCustRow?.full_name || 'Customer';
   const customerPublicId = sbCustRow?.customer_id || cust?.id || id;
 
+  // Rate-limiting / debounce check to prevent rapid repeated activations generating multiple passwords
+  const lockKey = `${customerPublicId}_${rawMobile}`;
+  const lastCall = portalActivationDebounce.get(lockKey) || 0;
+  if (Date.now() - lastCall < 3000) {
+    return res.status(429).json({
+      error: 'Portal activation already in progress for this customer. Please wait.',
+    });
+  }
+  portalActivationDebounce.set(lockKey, Date.now());
+
   if (!rawEmail && !rawMobile) {
     return res.status(400).json({ error: 'Customer must have an email or mobile number for portal access.' });
   }
 
   // Determine portal email: use real customer email or mobile domain fallback
   const portalEmail = rawEmail || `${rawMobile}@capitabee.in`;
+
+  // Server-side Idempotency: If portal access is ALREADY active and auth user exists, do not recreate or re-generate
+  if (sbCustRow?.portal_access_enabled && sbCustRow?.auth_user_id && !forceReset) {
+    return res.json({
+      success: true,
+      alreadyActive: true,
+      message: `Customer portal access is already active for ${custName} (${customerPublicId}).`,
+      auth_user_id: sbCustRow.auth_user_id,
+      loginCredentials: {
+        customerId: customerPublicId,
+        customer_id: customerPublicId,
+        email: portalEmail,
+        identifier: portalEmail,
+        mobile: rawMobile,
+      },
+    });
+  }
+
   const portalPassword = (password || `CB-${Math.floor(100000 + Math.random() * 900000)}`).trim();
   const now = new Date().toISOString();
 
@@ -3415,7 +3615,12 @@ apiRouter.post('/customers/:id/portal-access', authMiddleware, async (req: Authe
       if (sbCustRow?.id) {
         await sb.from('customers').update(custUpdatePayload).eq('id', sbCustRow.id);
       } else if (id) {
-        await sb.from('customers').update(custUpdatePayload).or(`customer_id.eq.${id},id.eq.${id}`);
+        const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+        if (isUUID) {
+          await sb.from('customers').update(custUpdatePayload).eq('id', id);
+        } else {
+          await sb.from('customers').update(custUpdatePayload).eq('customer_id', id);
+        }
       }
 
       // Update applications table
@@ -3510,11 +3715,14 @@ apiRouter.post('/customers/:id/reset-portal-password', authMiddleware, async (re
   // If Supabase admin is configured, update Supabase Auth
   if (sb) {
     try {
-      const { data: foundCusts } = await sb
-        .from('customers')
-        .select('*')
-        .or(`id.eq.${id},customer_id.eq.${id}`)
-        .limit(1);
+      const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+      let custQuery = sb.from('customers').select('*');
+      if (isUUID) {
+        custQuery = custQuery.eq('id', id);
+      } else {
+        custQuery = custQuery.eq('customer_id', id);
+      }
+      const { data: foundCusts } = await custQuery.limit(1);
 
       const sbCust = foundCusts && foundCusts.length > 0 ? foundCusts[0] : null;
       let authUserId = sbCust?.auth_user_id;

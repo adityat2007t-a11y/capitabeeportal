@@ -14,8 +14,8 @@
       "updatedAt": "2026-08-28T08:13:11.223Z",
       "passwordHash": "69a48ffde0c4d5469b6ed3173cba050400429036ffc37041ca59357557f1a3f42f528b5ba1d1ad736203f620b14f805267388ff6bb9a3913a37d86003ad284e0",
       "salt": "e61f206e862d5abb51bf167fc848e571",
-      "lastLogin": "2026-09-21T07:33:47.069Z",
-      "sessionStartedAt": "2026-09-21T07:33:47.069Z",
+      "lastLogin": "2026-09-23T05:29:29.413Z",
+      "sessionStartedAt": "2026-09-23T05:29:29.413Z",
       "lastLogout": "2026-09-02T12:33:56.547Z"
     },
     {
@@ -467,6 +467,27 @@
       "role": "ADMIN",
       "createdAt": "2026-09-21T07:33:47.069Z",
       "expiresAt": "2026-09-22T07:33:47.069Z"
+    },
+    {
+      "token": "c5fbc790a8e17c2f56213006cc0bc5475996ea7c64bcbafcdb55262d19997bbf",
+      "userId": "CB-ADMIN-01",
+      "role": "ADMIN",
+      "createdAt": "2026-09-23T05:28:13.415Z",
+      "expiresAt": "2026-09-24T05:28:13.415Z"
+    },
+    {
+      "token": "6e4e9850f1a3ea8fbacf59d6c3f42cab328a42421afba361874d8b08e7f0f75a",
+      "userId": "CB-ADMIN-01",
+      "role": "ADMIN",
+      "createdAt": "2026-09-23T05:29:21.514Z",
+      "expiresAt": "2026-09-24T05:29:21.514Z"
+    },
+    {
+      "token": "02b2e22d287ab340e2dd8ba665a8614bc16269f9ea6a49e911bbd4578c444b47",
+      "userId": "CB-ADMIN-01",
+      "role": "ADMIN",
+      "createdAt": "2026-09-23T05:29:29.413Z",
+      "expiresAt": "2026-09-24T05:29:29.413Z"
     }
   ],
   "leads": [],
@@ -476,6 +497,50 @@
   "followUps": [],
   "leadNotes": [],
   "auditLogs": [
+    {
+      "id": "AUD-000117",
+      "actorId": "CB-ADMIN-01",
+      "actorName": "System Administrator",
+      "actorRole": "ADMIN",
+      "action": "USER_LOGIN",
+      "entity": "User",
+      "entityId": "CB-ADMIN-01",
+      "timestamp": "2026-09-23T05:29:29.413Z",
+      "details": "ADMIN System Administrator logged in."
+    },
+    {
+      "id": "AUD-000116",
+      "actorId": "CB-ADMIN-01",
+      "actorName": "System Administrator",
+      "actorRole": "ADMIN",
+      "action": "CUSTOMER_PORTAL_ACCESS_ENABLED",
+      "entity": "Customer",
+      "entityId": "CUST-2026-000006",
+      "timestamp": "2026-09-23T05:29:23.142Z",
+      "details": "Portal access credentials generated in Supabase Auth for customer Rajpat Upadhyay (CUST-2026-000006)."
+    },
+    {
+      "id": "AUD-000115",
+      "actorId": "CB-ADMIN-01",
+      "actorName": "System Administrator",
+      "actorRole": "ADMIN",
+      "action": "USER_LOGIN",
+      "entity": "User",
+      "entityId": "CB-ADMIN-01",
+      "timestamp": "2026-09-23T05:29:21.514Z",
+      "details": "ADMIN System Administrator logged in."
+    },
+    {
+      "id": "AUD-000114",
+      "actorId": "CB-ADMIN-01",
+      "actorName": "System Administrator",
+      "actorRole": "ADMIN",
+      "action": "USER_LOGIN",
+      "entity": "User",
+      "entityId": "CB-ADMIN-01",
+      "timestamp": "2026-09-23T05:28:13.415Z",
+      "details": "ADMIN System Administrator logged in."
+    },
     {
       "id": "AUD-000113",
       "actorId": "CB-ADMIN-01",
@@ -1512,7 +1577,7 @@
     "leadSeq": 16,
     "applicationSeq": 16,
     "documentSeq": 0,
-    "auditSeq": 113
+    "auditSeq": 117
   },
   "reviews": [],
   "customers": [],

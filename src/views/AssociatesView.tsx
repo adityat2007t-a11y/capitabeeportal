@@ -57,6 +57,15 @@ export const AssociatesView: React.FC<AssociatesViewProps> = ({
   }, []);
 
   const filteredAssociates = associates.filter(a => {
+    // Exclude channel partners so the views are strictly separated
+    const isPartner =
+      a.role === 'PARTNER' ||
+      Boolean((a as any).partnerId) ||
+      a.department?.toLowerCase().includes('partner') ||
+      a.designation?.toLowerCase().includes('partner') ||
+      a.id?.toUpperCase().includes('PART');
+    if (isPartner) return false;
+
     const q = search.toLowerCase();
     return (
       a.name.toLowerCase().includes(q) ||

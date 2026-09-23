@@ -69,17 +69,19 @@ Temporary Password: ${password}`;
 
   const handleWhatsApp = () => {
     const text = encodeURIComponent(
-      `Hello ${customerName},\nYour Capitabee 12-Stage Loan Tracking Portal access is active!\n\n` +
-      `🔗 Portal: ${portalUrl}\n` +
-      `🆔 Customer ID: ${customerId}\n` +
-      `📧 Login ID: ${email}\n` +
-      `📱 Mobile: ${mobile}\n` +
-      `🔑 Temporary Password: ${password}\n\n` +
-      `Please log in to track your loan verification, sanction, and disbursement in real-time.`
+      `Hello ${customerName},\n\n` +
+      `Your Capitabee Financial Services Customer Portal access is now active.\n\n` +
+      `Portal:\n${portalUrl}\n\n` +
+      `Customer ID:\n${customerId}\n\n` +
+      `Temporary Password:\n${password}\n\n` +
+      `You can use these credentials to securely track your loan application and related updates through the Customer Portal.\n\n` +
+      `For assistance, please contact Capitabee Financial Services.\n\n` +
+      `Regards,\nCAPITABEE FINANCIAL SERVICES\n+91 8010886625`
     );
-    const cleanPhone = mobile.replace(/\D/g, '');
-    const phoneParam = cleanPhone.length >= 10 ? `&phone=${cleanPhone.length === 10 ? '91' + cleanPhone : cleanPhone}` : '';
-    window.open(`https://api.whatsapp.com/send?text=${text}${phoneParam}`, '_blank');
+    const cleanDigits = (mobile || '').replace(/\D/g, '');
+    const phone = cleanDigits.length === 10 ? `91${cleanDigits}` : cleanDigits;
+    const url = phone ? `https://wa.me/${phone}?text=${text}` : `https://api.whatsapp.com/send?text=${text}`;
+    window.open(url, '_blank');
   };
 
   return (
@@ -155,7 +157,7 @@ Temporary Password: ${password}`;
             className="flex items-center justify-center gap-1.5 py-2 px-3 bg-[#EBF4F2] hover:bg-[#DDF0EB] border border-[#C8E2DC] rounded-xl text-xs font-medium text-[#2D7A70] transition-colors cursor-pointer"
           >
             <MessageSquare className="w-3.5 h-3.5" />
-            <span>Send via WhatsApp</span>
+            <span>Share via WhatsApp</span>
           </button>
         </div>
 

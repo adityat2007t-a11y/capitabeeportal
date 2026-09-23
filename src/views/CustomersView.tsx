@@ -70,6 +70,7 @@ export const CustomersView: React.FC = () => {
   // Create / Edit modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [portalLoadingId, setPortalLoadingId] = useState<string | null>(null);
   const [isPortalModalOpen, setIsPortalModalOpen] = useState(false);
   const [portalCredentials, setPortalCredentials] = useState<CustomerPortalCredentials | null>(null);
 
@@ -141,15 +142,6 @@ export const CustomersView: React.FC = () => {
       setAssociates(loadedAssociates);
       setPartners(loadedAssociates.filter(a => (a as any).partnerType || a.department === 'Partner Network'));
       const serverCustList: Customer[] = custRes.customers || [];
-
-      const targetCustFound = serverCustList.some(c => c.id === 'CUST-2026-100402' || c.customerId === 'CUST-2026-100402');
-      console.log('[DIAGNOSTIC TRACE] CustomersView Layer 1 & 3:', {
-        targetCustId: 'CUST-2026-100402',
-        API_FOUND: targetCustFound,
-        STATE_LOADED_FOUND: targetCustFound,
-        totalCustomersLoaded: serverCustList.length,
-      });
-
       setCustomers(serverCustList);
 
       // Update diagnostic panel
@@ -319,28 +311,21 @@ export const CustomersView: React.FC = () => {
   };
 
   const handleGrantPortalAccess = async (cust: Customer) => {
+    if (portalLoadingId || actionLoading) return;
     setSelectedCustomer(cust);
+    setPortalLoadingId(cust.id);
     setActionLoading(true);
     setAlertMsg(null);
 
     try {
-      // 1. FORCE TRIM AND LOWERCASE MATCHING
+      // Generate temporary initial password
       const generatedPassword = `CB-${Math.floor(100000 + Math.random() * 900000)}`;
       const rawEmail = cust.email || '';
       const targetEmail = rawEmail ? rawEmail.trim().toLowerCase() : '';
 
-      const customer_id = cust.id || cust.customerId || 'CUST-ACTIVE';
+      const customer_id = cust.customerId || cust.id || 'CUST-ACTIVE';
       const mobile = cust.mobile || (cust as any).phone || '';
       const finalEmail = targetEmail || (mobile ? `${mobile.replace(/\D/g, '')}@capitabee.in` : 'customer@capitabee.in');
-
-      console.log('Granting portal access for customer:', {
-        customerId: cust.id,
-        customer_id,
-        targetEmail,
-        finalEmail,
-        mobile,
-        generatedPassword,
-      });
 
       // Call backend endpoint which uses Supabase Admin Auth API
       const response = await api.grantPortalAccess(cust.id || customer_id, generatedPassword);
@@ -377,6 +362,7 @@ export const CustomersView: React.FC = () => {
       setAlertMsg({ type: 'error', text: err.message || 'Portal access generation failed' });
     } finally {
       setActionLoading(false);
+      setPortalLoadingId(null);
     }
   };
 
@@ -395,17 +381,6 @@ export const CustomersView: React.FC = () => {
     const matchAssociate = associateFilter === 'All' || c.assignedAssociateId === associateFilter;
 
     return matchSearch && matchPartner && matchAssociate;
-  });
-
-  const custInAll = customers.some(c => c.id === 'CUST-2026-100402' || c.customerId === 'CUST-2026-100402');
-  const custInFiltered = filtered.some(c => c.id === 'CUST-2026-100402' || c.customerId === 'CUST-2026-100402');
-  console.log('[DIAGNOSTIC TRACE] CustomersView Layer 4, 5, 6:', {
-    targetCustId: 'CUST-2026-100402',
-    API_FOUND: custInAll,
-    AFTER_FILTER_FOUND: custInFiltered,
-    RENDERED_FOUND: custInFiltered,
-    activeFilters: { search, partnerFilter, associateFilter },
-    totalFiltered: filtered.length,
   });
 
   return (
@@ -721,11 +696,16 @@ export const CustomersView: React.FC = () => {
                       ) : (
                         <button
                           type="button"
-                          onClick={() => handleGrantPortalAccess(cust)}
-                          className="px-2.5 py-1 rounded-lg text-[10px] font-semibold bg-[#121212] text-white hover:bg-[#2A2A2A] transition-all cursor-pointer flex items-center gap-1"
+                          disabled={portalLoadingId === cust.id}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (portalLoadingId) return;
+                            handleGrantPortalAccess(cust);
+                          }}
+                          className={`px-2.5 py-1 rounded-lg text-[10px] font-semibold bg-[#121212] text-white hover:bg-[#2A2A2A] transition-all cursor-pointer flex items-center gap-1 ${portalLoadingId === cust.id ? 'opacity-50 cursor-not-allowed' : ''}`}
                         >
                           <KeyRound className="w-3 h-3 text-[#B89758]" />
-                          <span>Enable Access</span>
+                          <span>{portalLoadingId === cust.id ? 'Activating...' : 'Enable Access'}</span>
                         </button>
                       )}
                     </td>
@@ -743,9 +723,14 @@ export const CustomersView: React.FC = () => {
                         {cust.portalAccessEnabled && (
                           <button
                             type="button"
-                            onClick={() => handleGrantPortalAccess(cust)}
+                            disabled={portalLoadingId === cust.id}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (portalLoadingId) return;
+                              handleGrantPortalAccess(cust);
+                            }}
                             title="Reset Portal Password"
-                            className="p-1.5 text-[#5A5854] hover:text-[#121212] hover:bg-[#F2F1ED] rounded-lg cursor-pointer"
+                            className={`p-1.5 text-[#5A5854] hover:text-[#121212] hover:bg-[#F2F1ED] rounded-lg cursor-pointer ${portalLoadingId === cust.id ? 'opacity-50 cursor-not-allowed' : ''}`}
                           >
                             <Lock className="w-3.5 h-3.5 text-[#B89758]" />
                           </button>
